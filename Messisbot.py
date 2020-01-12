@@ -1,3 +1,4 @@
+import glob, os
 import platform
 print(platform.python_version())
 
@@ -15,12 +16,12 @@ from utilities import *
 
 
 class MyClient(discord.Client):
-
-
 	def __init__(self, *args, **kwargs):
 		super().__init__(*args, **kwargs)
 		self.servers = {}
-		self.botid = "621384713415688245"
+		self.badwords = []
+
+
 
 
 	async def doSave(self,):
@@ -57,10 +58,31 @@ class MyClient(discord.Client):
 			print("[#### WARNING ####]: Bot was unable to load data from storage.")
 			self.servers = {}
 
+	async def reloadWordDetect(self,):
+
+		### Scan directory for textfiles and load all words from the file to masterlist
+		masterlist = []
+		tempList = []
+		os.chdir("word-detection/")
+		for file in glob.glob("*.txt"):
+			with open(file) as f:
+				tempList  = f.readlines()
+			f.close()
+			masterlist = masterlist + tempList
+		
+
+		### Remove newline marks from each string.
+		for i in range(len(masterlist)):
+			tempvar = masterlist[i].split("\n")
+			masterlist[i] = tempvar[0]
+
+		self.badwords = masterlist
+
 
 	async def on_ready(self):
 		self.prefix = "!m "
 		await self.loadData()
+		#await self.reloadWordDetect()
 
 		self.saveLoop = self.loop.create_task(self.doSave())
 		print(discord.__version__)
@@ -81,7 +103,14 @@ class MyClient(discord.Client):
 		#### Post image if someone mentions the bot ####
 		if self.user in message.mentions:
 			 await channel.send(file=discord.File('assets/summoned.png'))
-			 
+
+		#### Detection for bad words ####
+		scannedmessage = message.content.split()
+		for i in range(len(self.badwords)):
+			if self.badwords[i] in scannedmessage:
+				await channel.send("BAD BOI")
+
+		print(scannedmessage)
 
 
 		#### Checks if message has wanted prefix so its detected to be a command ####
@@ -110,6 +139,10 @@ class MyClient(discord.Client):
 					await self.loadData()
 					await channel.send("Loading done!")
 
+				if command == "reload_word_detect":
+					await self.reloadWordDetect()
+					await channel.send("Reloading done!")
+
 				if command == "setup":
 					self.servers[guild_id] = {
 					"owner":guild_owner,
@@ -130,6 +163,10 @@ class MyClient(discord.Client):
 				if command == "setlogchannel":
 					self.servers[guild_id]["logchannel"] = message.channel.id
 					await channel.send("Log channel set!")
+
+				if command == "setswearchannel":
+					self.servers[guild_id]["cspychannel"] = message.channel.id
+					await channel.send("Channel set!")
 
 			if command.startswith("setadminrole"):
 				print(self.servers)

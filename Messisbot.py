@@ -73,11 +73,15 @@ class MyClient(discord.Client):
 
 
 		#### Does the greeting thing ###
-		greetings = ["moi","hello","hi","sup"]
-		if lowercased_content in greetings and not message.author.id == self.botid:
-			await channel.send(str(random.choice(greetings)))
+		if not self.user == message.author:
+			greetings = ["moi","hello","hi","sup"]
+			if lowercased_content in greetings and not message.author.id == self.botid:
+				await channel.send(str(random.choice(greetings)))
 
-
+		#### Post image if someone mentions the bot ####
+		if self.user in message.mentions:
+			 await channel.send(file=discord.File('assets/summoned.png'))
+			 
 
 
 		#### Checks if message has wanted prefix so its detected to be a command ####
@@ -98,9 +102,6 @@ class MyClient(discord.Client):
 				if command == "test":
 					await channel.send("It seems that the test was successfull.")
 
-				if command == "badge":
-					await channel.send("```Käyttäjä "+str(message.author.name)+" ansaitsi PA-ndagen kanavalla```")
-
 				if command == "save":
 					self.saveData()
 					await channel.send("Saving done!")
@@ -116,7 +117,9 @@ class MyClient(discord.Client):
 					"adminrole":"0",
 					"userrole":"0",
 					"badges":{},
-					"logchannel":"0"
+					"polls":{},
+					"logchannel":"0",
+					"cspychannel":"0" #### Channel info where bad words are logged.
 					}
 					await channel.send("Server setup done: "+str(self.servers[str(guild_id)]))
 

@@ -1,3 +1,4 @@
+from datetime import datetime
 import glob, os
 import platform
 print(platform.python_version())
@@ -20,17 +21,20 @@ class MyClient(discord.Client):
 		super().__init__(*args, **kwargs)
 		self.servers = {}
 		self.badwords = []
+		self.botimage = "http://via.placeholder.com/350x350" #### Image for embeds
+		self.autosave = True
 
 
 
-
+	#### Task that runs save every 30sec ####
 	async def doSave(self,):
 		await self.wait_until_ready()
 		while not self.is_closed():
-			self.saveData()
+			if self.autosave == True:
+				self.saveData()
 			await asyncio.sleep(30)
 
-
+	#### Saves data from self.servers to data.json ####
 	def saveData(self,):
 		print("Saving started!")
 		tempdata = self.servers
@@ -40,26 +44,25 @@ class MyClient(discord.Client):
 		fpp.close()
 		print("Saving done!")
 
+	#### Loads data from data.json and saves it to self.servers ####
 	async def loadData(self):
 		try:
 			print("Loading started!")
-			print(self.servers)
-
 			data = {}
 			with open('data.json', 'r') as fp:
 				data = json.load(fp)
-			#print("DATA: "+str(data))
-			#servers = data
 			self.servers = data
 			fp.close()
 			print("Loading done!")
-			print(self.servers)
+
 		except:
+			#### If bot fails to load data.json make self.servers an empty dictionary to avoid crashes also disable autosave that all data is not lost in autosave.
 			print("[#### WARNING ####]: Bot was unable to load data from storage.")
+			self.autosave = False
 			self.servers = {}
 
+	#### Load bad words to the bot ####
 	async def reloadWordDetect(self,):
-
 		### Scan directory for textfiles and load all words from the file to masterlist
 		masterlist = []
 		tempList = []
@@ -69,7 +72,7 @@ class MyClient(discord.Client):
 				tempList  = f.readlines()
 			f.close()
 			masterlist = masterlist + tempList
-		
+		os.chdir("../")
 
 		### Remove newline marks from each string.
 		for i in range(len(masterlist)):
@@ -78,11 +81,21 @@ class MyClient(discord.Client):
 
 		self.badwords = masterlist
 
+	#### Function for getting a timestamp ####
+	async def getTime(self,):
+		now = datetime.now()
+		year = now.strftime("%Y")
+		month = now.strftime("%m")
+		day = now.strftime("%d")
+		time = now.strftime("%H:%M:%S")
+		date_time = now.strftime("%m/%d/%Y, %H:%M:%S")
+
+		return date_time;
 
 	async def on_ready(self):
 		self.prefix = "!m "
 		await self.loadData()
-		#await self.reloadWordDetect()
+		await self.reloadWordDetect()
 
 		self.saveLoop = self.loop.create_task(self.doSave())
 		print(discord.__version__)
@@ -143,6 +156,7 @@ class MyClient(discord.Client):
 					await self.reloadWordDetect()
 					await channel.send("Reloading done!")
 
+
 				if command == "setup":
 					self.servers[guild_id] = {
 					"owner":guild_owner,
@@ -151,6 +165,7 @@ class MyClient(discord.Client):
 					"userrole":"0",
 					"badges":{},
 					"polls":{},
+					"users":{},
 					"logchannel":"0",
 					"cspychannel":"0" #### Channel info where bad words are logged.
 					}
@@ -178,6 +193,16 @@ class MyClient(discord.Client):
 				self.servers[guild_id]["userrole"] = mentioned_roles[0].id
 				await channel.send("Updated user role to: <@&"+str(self.servers[guild_id]["userrole"])+">")
 
+	async def on_member_join(self,member):
+		joinmessage = "Hei Tervetuloa Messiksen discord serverille! Minä olen "+str(self.user.name)+" ja minä tarkkailen juttuja ympäri messiksen discord serveriä! \n Oletko jo täyttänyt pienen kyselyn? \n https://www.mess.is/liity/"
+		logchannel = self.get_channel(self.servers[str(member.guild.id)]["logchannel"])
+
+		embed=discord.Embed(description="<@"+str(member.id)+"> Liittyi palvelimelle!", color=0x33c41a)
+		embed.set_author(name="MessisBot",icon_url=self.botimage)
+		embed.set_thumbnail(url=member.avatar_url)
+		embed.set_footer(text=str(await self.getTime()))
+		await logchannel.send(embed=embed)
+		await member.send(joinmessage)
 
 	async def on_raw_reaction_add(self,payload):
 
@@ -193,8 +218,23 @@ class MyClient(discord.Client):
 					sender = self.get_guild(payload.guild_id).get_member(payload.user_id)
 
 					link = "https://discordapp.com/channels/"+str(payload.guild_id)+"/"+str(payload.channel_id)+"/"+str(payload.message_id) #### Generate link for the message
-					logmessage = "> "+link+" \n <@"+str(sender.id)+"> antoi <@"+str(messageobj.author.id)+"> puheenaihe badgen! \n"+str(messageobj.content)
+					logmessage = link+" \n > <@"+str(sender.id)+"> antoi <@"+str(messageobj.author.id)+"> puheenaihe badgen! \n ```"+str(messageobj.content)+"```"
+
+					'''
+					embed=discord.Embed(title="Puheenaihebadge!",description="<@"+str(sender.id)+"> antoi puheenaihe badgen käyttäjälle <@"+str(messageobj.author.id)+"> \n",url=link, color=0x56c6fc)
+					embed.set_author(name="MessisBot",icon_url="http://via.placeholder.com/350x350")
+					embed.set_thumbnail(url="http://via.placeholder.com/350x350")
+					embed.add_field(name="Tiedot", value=link, inline=True)
+					embed.set_footer(text=str(await self.getTime()))
+					await logchannel.send(embed=embed)
+					'''
 					await logchannel.send(logmessage)
+
+
+
+
+
+					
 
 					#### Add message badge info into the servers/badges
 					self.servers[str(payload.guild_id)]["badges"][str(payload.message_id)] = {
@@ -206,7 +246,8 @@ class MyClient(discord.Client):
 						"usergaveid":str(payload.user_id),
 						"channelid":str(payload.channel_id),
 						"channelname":str(channel.name),
-						"type":"puheenaihebadge"
+						"type":"puheenaihebadge",
+						"timestamp": str(await self.getTime())
 					}
 			else:
 				print("Message is allready added!")

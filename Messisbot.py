@@ -1,6 +1,7 @@
 from datetime import datetime
 import glob, os
 import platform
+import re
 print(platform.python_version())
 
 import discord
@@ -166,9 +167,17 @@ class MyClient(discord.Client):
 					"badges":{},
 					"polls":{},
 					"users":{},
+					"settings":{
+						"setting_badges":{},
+						"settings_censor":{}
+					},
 					"logchannel":"0",
 					"cspychannel":"0" #### Channel info where bad words are logged.
 					}
+
+					#for x in server.Server.members:
+
+
 					await channel.send("Server setup done: "+str(self.servers[str(guild_id)]))
 
 
@@ -183,15 +192,60 @@ class MyClient(discord.Client):
 					self.servers[guild_id]["cspychannel"] = message.channel.id
 					await channel.send("Channel set!")
 
+
+				if command.startswith("createbadge"):
+
+					temp = command.split(" ")
+
+					r = re.match(".*<:(.*):(.*)>",message.content) #### get emote name
+					r2 = re.match(".*:(\w*)>.*",message.content) #### get emote id
+
+					if r and r2: #### If emotename and emote id was found 
+						self.servers[str(guild_id)]["settings"]["setting_badges"][str(r2.group(1))] = {
+							"emotename":str(r.group(1)),
+							"badgetype":str(temp[2]),
+							"role":str(mentioned_roles[0].id),
+							"timestamp": str(await self.getTime())
+						}
+						await channel.send("**"+str(temp[2])+"** badge luotu emotelle: :"+str(temp[1])+": roolille: <@&"+str(mentioned_roles[0].id)+">")
+					else:
+						await channel.send("Virhe badgen luomisessa. Onko syntaxi oikein? !m help")
+
+				if command.startswith("listbadges"):
+
+					badges = "Rekisteröidyt Badget \n"
+					tempBadge = ""
+					badge = self.servers[str(guild_id)]["settings"]["setting_badges"]
+					for x in badge:
+						print("x: "+str(x))
+						tempBadge = str(badge[str(x)]["badgetype"])+"  :  "+str(badge[str(x)]["emotename"])+"  :  <@&"+str(badge[str(x)]["role"])+">\n"
+						badges = badges + tempBadge
+					await channel.send(badges)
+
+				if command.startswith("delbadge"):
+					badge = self.servers[str(guild_id)]["settings"]["setting_badges"]
+					temp = command.split(" ")
+					for i in badge:
+						if badge[i]["badgetype"] == temp[1]:
+							await channel.send(str(badge[i]["badgetype"])+" badge poistettiin!")
+							del badge[i]
+							break
+
+
+					
+
 			if command.startswith("setadminrole"):
 				print(self.servers)
 				self.servers[guild_id]["adminrole"] = mentioned_roles[0].id
-				await channel.send("Updated admin role to: <@"+str(self.servers[guild_id]["adminrole"])+">")
+				await channel.send("Updated admin role to: <@&"+str(self.servers[guild_id]["adminrole"])+">")
 
 			elif command.startswith("setuserrole"):
 				print(self.servers)	
 				self.servers[guild_id]["userrole"] = mentioned_roles[0].id
 				await channel.send("Updated user role to: <@&"+str(self.servers[guild_id]["userrole"])+">")
+
+			elif command.startswith("help"):
+				await channel.send("https://github.com/cmdtvt/MessisBot")
 
 	async def on_member_join(self,member):
 		joinmessage = "Hei Tervetuloa Messiksen discord serverille! Minä olen "+str(self.user.name)+" ja minä tarkkailen juttuja ympäri messiksen discord serveriä! \n Oletko jo täyttänyt pienen kyselyn? \n https://www.mess.is/liity/"
@@ -206,55 +260,46 @@ class MyClient(discord.Client):
 
 	async def on_raw_reaction_add(self,payload):
 
-		#### If user who added reaction has allowed role to add badges ####
-		if int(self.servers[str(payload.guild_id)]["userrole"]) in [x.id for x in self.get_guild(payload.guild_id).get_member(payload.user_id).roles]:
+		##### This is the code for the badge system. This code checks if user has permission to use certain badge
+		for i in self.get_guild(payload.guild_id).get_member(payload.user_id).roles: #### Run for each role in user
+			for x in self.servers[str(payload.guild_id)]["settings"]["setting_badges"]: #### Run for each added badge
 
-			if not str(payload.message_id) in self.servers[str(payload.guild_id)]["badges"].keys(): #### Check if message exsists allready
-				if payload.emoji.name == "juttu": #### Check if emote is the right one
+				badgeinfo = self.servers[str(payload.guild_id)]["settings"]["setting_badges"][str(x)]
+				badgetype = badgeinfo["badgetype"]
 
-					channel = self.get_channel(payload.channel_id)
-					logchannel = self.get_channel(self.servers[str(payload.guild_id)]["logchannel"])
-					messageobj = await channel.fetch_message(payload.message_id)
-					sender = self.get_guild(payload.guild_id).get_member(payload.user_id)
-
-					link = "https://discordapp.com/channels/"+str(payload.guild_id)+"/"+str(payload.channel_id)+"/"+str(payload.message_id) #### Generate link for the message
-					logmessage = link+" \n > <@"+str(sender.id)+"> antoi <@"+str(messageobj.author.id)+"> puheenaihe badgen! \n ```"+str(messageobj.content)+"```"
-
-					'''
-					embed=discord.Embed(title="Puheenaihebadge!",description="<@"+str(sender.id)+"> antoi puheenaihe badgen käyttäjälle <@"+str(messageobj.author.id)+"> \n",url=link, color=0x56c6fc)
-					embed.set_author(name="MessisBot",icon_url="http://via.placeholder.com/350x350")
-					embed.set_thumbnail(url="http://via.placeholder.com/350x350")
-					embed.add_field(name="Tiedot", value=link, inline=True)
-					embed.set_footer(text=str(await self.getTime()))
-					await logchannel.send(embed=embed)
-					'''
-					await logchannel.send(logmessage)
+				#### Message Generation and stuff
+				channel = self.get_channel(payload.channel_id)
+				logchannel = self.get_channel(self.servers[str(payload.guild_id)]["logchannel"])
+				messageobj = await channel.fetch_message(payload.message_id)
+				sender = self.get_guild(payload.guild_id).get_member(payload.user_id)
+				link = "https://discordapp.com/channels/"+str(payload.guild_id)+"/"+str(payload.channel_id)+"/"+str(payload.message_id) #### Generate link for the message
+				logmessage = link+" \n > <@"+str(sender.id)+"> antoi <@"+str(messageobj.author.id)+"> **"+str(badgetype)+"** badgen! \n ```"+str(messageobj.content)+"```"
 
 
 
 
 
-					
 
-					#### Add message badge info into the servers/badges
-					self.servers[str(payload.guild_id)]["badges"][str(payload.message_id)] = {
-						"message":str(messageobj.content),
-						"messagelink":str(link),
-						"messageownername":str(messageobj.author.name),
-						"messageownerid":str(messageobj.author.id),
-						"usergavename":str(self.get_guild(payload.guild_id).get_member(payload.user_id).name),
-						"usergaveid":str(payload.user_id),
-						"channelid":str(payload.channel_id),
-						"channelname":str(channel.name),
-						"type":"puheenaihebadge",
-						"timestamp": str(await self.getTime())
-					}
-			else:
-				print("Message is allready added!")
+				if badgeinfo["role"] == str(i.id): #### Check if users role matches the role in badge
+					if str(badgeinfo["emotename"]) == str(payload.emoji.name): #### Check that its the correct badge.
 
-			
+						if not str(payload.message_id) in self.servers[str(payload.guild_id)]["badges"].keys(): #### Check that the badge has not been added allready
+							await logchannel.send(logmessage)
 
-					
+							#### Add message badge info into the servers/badges
+							self.servers[str(payload.guild_id)]["badges"][str(payload.message_id)] = {
+								"message":str(messageobj.content),
+								"messagelink":str(link),
+								"messageownername":str(messageobj.author.name),
+								"messageownerid":str(messageobj.author.id),
+								"usergavename":str(self.get_guild(payload.guild_id).get_member(payload.user_id).name),
+								"usergaveid":str(payload.user_id),
+								"channelid":str(payload.channel_id),
+								"channelname":str(channel.name),
+								"type":str(badgetype),
+								"timestamp": str(await self.getTime())
+							}
+
 
 
 

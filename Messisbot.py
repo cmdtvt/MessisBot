@@ -24,6 +24,7 @@ class MyClient(discord.Client):
 		self.badwords = []
 		self.botimage = "http://via.placeholder.com/350x350" #### Image for embeds
 		self.autosave = True
+		self.autosave_frequency = 30 #### How many seconds between autosaves.
 
 
 
@@ -33,7 +34,7 @@ class MyClient(discord.Client):
 		while not self.is_closed():
 			if self.autosave == True:
 				self.saveData()
-			await asyncio.sleep(30)
+			await asyncio.sleep(self.autosave_frequency)
 
 	#### Saves data from self.servers to data.json ####
 	def saveData(self,):
@@ -245,7 +246,7 @@ class MyClient(discord.Client):
 				await channel.send("Updated user role to: <@&"+str(self.servers[guild_id]["userrole"])+">")
 
 			elif command.startswith("help"):
-				await channel.send("https://github.com/cmdtvt/MessisBot")
+				await channel.send("https://github.com/cmdtvt/MessisBot#commands")
 
 	async def on_member_join(self,member):
 		joinmessage = "Hei Tervetuloa Messiksen discord serverille! Minä olen "+str(self.user.name)+" ja minä tarkkailen juttuja ympäri messiksen discord serveriä! \n Oletko jo täyttänyt pienen kyselyn? \n https://www.mess.is/liity/"

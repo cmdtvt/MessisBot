@@ -2,6 +2,7 @@ from datetime import datetime
 import glob, os
 import platform
 import re
+
 print(platform.python_version())
 
 import discord
@@ -14,12 +15,14 @@ Bot's other files...
 from config import *
 from storage import *
 from utilities import *
+from imageEdit import *
 
 
 
 class MyClient(discord.Client):
 	def __init__(self, *args, **kwargs):
 		super().__init__(*args, **kwargs)
+		self.prefix = "!m "
 		self.servers = {}
 		self.badwords = []
 		self.botimage = "http://via.placeholder.com/350x350" #### Image for embeds
@@ -94,8 +97,22 @@ class MyClient(discord.Client):
 
 		return date_time;
 
+	#### Creates new empty user to self.servers when member is provided ####
+	async def createNewUser(self,i):
+		self.servers[guild_id]["storage"]["users"][i.id] = {
+			"storage":{
+				"discordname":str(i.name),
+				"linked":{}
+			},
+			"settings":{},
+			"stats":{
+				"swearwords":"0",
+				"messages-total":"0"
+			}
+		}
+
+
 	async def on_ready(self):
-		self.prefix = "!m "
 		await self.loadData()
 		await self.reloadWordDetect()
 
@@ -106,8 +123,14 @@ class MyClient(discord.Client):
 
 	async def on_message(self, message):
 		channel = message.channel
+		guild_id = str(message.guild.id)
 		lowercased_content = message.content.lower();
+		logchannel = self.get_channel(self.servers[str(message.author.guild.id)]["settings"]["setting_logchannel"])
+		swearlogchannel = self.get_channel(self.servers[str(message.author.guild.id)]["settings"]["setting_swearlogchannel"])
 
+		#### Track user message count ####
+		userstats = self.servers[guild_id]["storage"]["users"][str(message.author.id)]["stats"]
+		userstats["messages-total"] = int(userstats["messages-total"])+1
 
 		#### Does the greeting thing ###
 		if not self.user == message.author:
@@ -120,12 +143,17 @@ class MyClient(discord.Client):
 			 await channel.send(file=discord.File('assets/summoned.png'))
 
 		#### Detection for bad words ####
+		hasBadWords = False
+		foundWords = []
 		scannedmessage = message.content.split()
 		for i in range(len(self.badwords)):
 			if self.badwords[i] in scannedmessage:
-				await channel.send("BAD BOI")
+				foundWords.append(self.badwords[i])
+				hasBadWords = True
 
-		print(scannedmessage)
+		if hasBadWords == True:
+			await swearlogchannel.send("> <@&"+str(message.author.id)+"> triggered bad words: "+str(foundWords))
+			hasBadWords = False
 
 
 		#### Checks if message has wanted prefix so its detected to be a command ####
@@ -138,7 +166,7 @@ class MyClient(discord.Client):
 			guild_id = str(message.guild.id)
 			guild_owner = message.guild.owner_id
 			guild_name = message.guild.name
-			print(guild_name)
+			guild_members = message.guild.members
 
 
 			#### developer commands ####
@@ -185,7 +213,12 @@ class MyClient(discord.Client):
 					}
 
 
-					await channel.send("Server setup done: "+str(self.servers[str(guild_id)]))
+
+					print(guild_members)
+					for i in guild_members:
+						await self.createNewUser(i)
+
+					await channel.send("Server setup done! Members: "+str(len(guild_members)))
 
 
 			#### Commands for admins
@@ -236,7 +269,40 @@ class MyClient(discord.Client):
 						if badge[i]["badgetype"] == temp[1]:
 							await channel.send(str(badge[i]["badgetype"])+" badge poistettiin!")
 							del badge[i]
-							break
+							break #### Must break the loop because we delete stuff from the list we are looping. If not done crashes.
+
+				if command.startswith("createpoll"):
+					logchannel = self.get_channel(self.servers[str(message.author.guild.id)]["settings"]["setting_logchannel"])
+
+					temp = command.split(",")
+					name = temp[1]
+					text = temp[2]
+					answers = temp[3]
+					answers = answers.strip("(")
+					answers = answers.strip(")")
+					answers = answers.split(",")
+
+					embed=discord.Embed(title="Kysely: **"+str(name)+"**",description=text, color=0x92e3f1)
+					embed.set_author(name="MessisBot",icon_url=self.botimage)
+
+					embed.add_field(name="##################################################", value="**Vaihtoehdot**", inline=False)
+					for i in range(20):
+						embed.add_field(name="#"+str(i)+" Vaihtoehto", value="Keksit",inline=True)
+
+					#embed.set_thumbnail(url=member.avatar_url)
+
+					embed.add_field(name="##################################################", value="Miten vastaan? Kirjoita !m vote [NUMERO]",inline=False)
+					embed.set_footer(text=str(await self.getTime()))
+
+					print(temp)
+					print(answers)
+
+					await logchannel.send(embed=embed)
+
+				if command.startswith("vote"):
+					temp = command.split(" ")
+					
+					await channel.send(message.author.name+" Äänesti vaihtoethoa: "+str(temp[1]))
 
 
 					
@@ -246,11 +312,36 @@ class MyClient(discord.Client):
 				self.servers[guild_id]["settings"]["setting_adminrole"] = mentioned_roles[0].id
 				await channel.send("Updated admin role to: <@&"+str(self.servers[guild_id]["settings"]["setting_adminrole"])+">")
 
+			if command.startswith("profile"):
+
+				#### If user has not mentioned anyone show users own profile.
+				if len(mentioned_users) > 0:
+					targetuser = mentioned_users[0]
+				else:
+					targetuser = message.author
+
+				msgtotal = userstats["messages-total"]
+				image = targetuser.avatar_url
+				name = targetuser.name
+				bio = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."
+
+
+				
+				image_editor = ImageEditor(image,name,bio,msgtotal)
+				image_editor.createProfile()
+				del image_editor
+
+				await channel.send(file=discord.File('assets/image-edit/result.png'))
+
+
 
 			elif command.startswith("help"):
 				await channel.send("https://github.com/cmdtvt/MessisBot#commands")
 
 	async def on_member_join(self,member):
+
+		await self.createNewUser(self,member)
+
 		joinmessage = "Hei Tervetuloa Messiksen discord serverille! Minä olen "+str(self.user.name)+" ja minä tarkkailen juttuja ympäri messiksen discord serveriä! \n Oletko jo täyttänyt pienen kyselyn? \n https://www.mess.is/liity/"
 		logchannel = self.get_channel(self.servers[str(member.guild.id)]["settings"]["setting_logchannel"])
 

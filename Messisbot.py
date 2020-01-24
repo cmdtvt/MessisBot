@@ -99,10 +99,13 @@ class MyClient(discord.Client):
 
 	#### Creates new empty user to self.servers when member is provided ####
 	async def createNewUser(self,i):
-		self.servers[guild_id]["storage"]["users"][i.id] = {
+		curuser = self.servers[str(i.guild.id)]["storage"]["users"]
+		curuser[str(i.id)] = {
 			"storage":{
 				"discordname":str(i.name),
-				"linked":{}
+				"status":"0",
+				"linked":{},
+                "roles":{}
 			},
 			"settings":{},
 			"stats":{
@@ -110,6 +113,32 @@ class MyClient(discord.Client):
 				"messages-total":"0"
 			}
 		}
+            
+		#### Adds all users roles to the storage.
+		for role in i.roles:
+			curuser[str(i.id)]["storage"]["roles"][str(role.id)] = {
+				"name":str(role.name)
+			}
+
+
+	async def logNewEvent(self,guild_id,eventname,data):
+
+		eventlog_ch = self.servers[str(guild_id)]["storage"]["eventlog"]
+		eventlog_id = self.servers[str(guild_id)]["storage"]["eventlog_id"]
+
+		eventlog_ch[str(eventlog_id)] = {
+			"eventname":str(eventname),
+			"data":data,
+			"timestamp":str(await self.getTime()) 
+		}
+		eventlog_id = int(eventlog_id)+1
+
+		self.servers[str(guild_id)]["storage"]["eventlog_id"] = int(self.servers[str(guild_id)]["storage"]["eventlog_id"])+1
+
+		#userstats["swearwords"] = int(userstats["swearwords"])+1
+		#print(eventlog_id)
+		print(self.servers[str(guild_id)]["storage"]["eventlog_id"])
+		#print("New event registerd!")
 
 
 	async def on_ready(self):
@@ -129,13 +158,16 @@ class MyClient(discord.Client):
 		swearlogchannel = self.get_channel(self.servers[str(message.author.guild.id)]["settings"]["setting_swearlogchannel"])
 
 		#### Track user message count ####
-		userstats = self.servers[guild_id]["storage"]["users"][str(message.author.id)]["stats"]
-		userstats["messages-total"] = int(userstats["messages-total"])+1
+		try:
+			userstats = self.servers[guild_id]["storage"]["users"][str(message.author.id)]["stats"]
+			userstats["messages-total"] = int(userstats["messages-total"])+1
+		except:
+			pass;
 
 		#### Does the greeting thing ###
 		if not self.user == message.author:
 			greetings = ["moi","hello","hi","sup"]
-			if lowercased_content in greetings and not message.author.id == self.botid:
+			if lowercased_content in greetings and not message.author.id == self.user.id:
 				await channel.send(str(random.choice(greetings)))
 
 		#### Post image if someone mentions the bot ####
@@ -152,7 +184,12 @@ class MyClient(discord.Client):
 				hasBadWords = True
 
 		if hasBadWords == True:
-			await swearlogchannel.send("> <@&"+str(message.author.id)+"> triggered bad words: "+str(foundWords))
+			await swearlogchannel.send("> <@"+str(message.author.id)+"> triggered bad words: "+str(foundWords))
+			try:
+				userstats = self.servers[guild_id]["storage"]["users"][str(message.author.id)]["stats"]
+				userstats["swearwords"] = int(userstats["swearwords"])+1
+			except:
+				pass;
 			hasBadWords = False
 
 
@@ -171,6 +208,7 @@ class MyClient(discord.Client):
 
 			#### developer commands ####
 			if message.author.id == 125253485322174464:
+
 				if command == "test":
 					print(self.servers)
 					await channel.send("It seems that the test was successfull.")
@@ -197,6 +235,8 @@ class MyClient(discord.Client):
 							"servername":str(guild_name)
 						},
 						"storage":{
+							"eventlog_id":"0", #### Current id of event log
+							"eventlog":{},
 							"badges":{},
 							"polls":{},
 							"users":{}
@@ -214,7 +254,7 @@ class MyClient(discord.Client):
 
 
 
-					print(guild_members)
+					#print(guild_members)
 					for i in guild_members:
 						await self.createNewUser(i)
 
@@ -321,13 +361,14 @@ class MyClient(discord.Client):
 					targetuser = message.author
 
 				msgtotal = userstats["messages-total"]
+				swearwords = userstats["swearwords"]
 				image = targetuser.avatar_url
 				name = targetuser.name
 				bio = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."
 
 
 				
-				image_editor = ImageEditor(image,name,bio,msgtotal)
+				image_editor = ImageEditor(image,name,bio,msgtotal,swearwords)
 				image_editor.createProfile()
 				del image_editor
 
@@ -340,7 +381,7 @@ class MyClient(discord.Client):
 
 	async def on_member_join(self,member):
 
-		await self.createNewUser(self,member)
+		await self.createNewUser(member)
 
 		joinmessage = "Hei Tervetuloa Messiksen discord serverille! Minä olen "+str(self.user.name)+" ja minä tarkkailen juttuja ympäri messiksen discord serveriä! \n Oletko jo täyttänyt pienen kyselyn? \n https://www.mess.is/liity/"
 		logchannel = self.get_channel(self.servers[str(member.guild.id)]["settings"]["setting_logchannel"])
@@ -351,6 +392,69 @@ class MyClient(discord.Client):
 		embed.set_footer(text=str(await self.getTime()))
 		await logchannel.send(embed=embed)
 		await member.send(joinmessage)
+
+		data = {
+			"user_name":str(member.name),
+			"user_id":str(member.id),
+			"user_nick":str(member.nick)
+		}
+
+		await self.logNewEvent(member.guild.id,"joinedserver",data)
+
+	async def on_member_remove(self,member):
+		logchannel = self.get_channel(self.servers[str(member.guild.id)]["settings"]["setting_logchannel"])
+
+		embed=discord.Embed(description="<@"+str(member.id)+"> Lähti palvelimelta", color=0xef5f21)
+		embed.set_author(name="MessisBot",icon_url=self.botimage)
+		#file = discord.File("assets/leftserver.png", filename="file")
+		#print(dir(file))
+		#embed.set_thumbnail(url=file.url)
+		embed.set_thumbnail(url=member.avatar_url)
+		embed.set_footer(text=str(await self.getTime()))
+		await logchannel.send(embed=embed)
+		data = {
+			"user_name":str(member.name),
+			"user_id":str(member.id),
+			"user_nick":str(member.nick)
+		}
+		await self.logNewEvent(member.guild.id,"leftserver",data)
+
+
+	async def on_member_update(self,before,after):
+
+		#### Check if roles has been added or removed from user.
+		if len(after.roles) > len(before.roles):
+			print("Role was added")
+
+			for i in after.roles:
+				if not i in before.roles:
+					data = {
+						"rolename":str(i.name),
+						"roleid":str(i.id),
+						"user_name":str(after.name),
+						"user_id":str(after.id)
+					}
+					await self.logNewEvent(after.guild.id,"roleadd",data)
+
+		elif len(after.roles) < len(before.roles):
+			print("Role was removed")
+
+			for i in before.roles:
+				if not i in after.roles:
+					data = {
+						"rolename":str(i.name),
+						"roleid":str(i.id),
+						"user_name":str(after.name),
+						"user_id":str(after.id)
+					}
+					await self.logNewEvent(after.guild.id,"roleremoved",data)
+
+		else:
+			print("Something else happend")
+
+
+		#print(after.roles)
+		#print(dir(after))
 
 	async def on_raw_reaction_add(self,payload):
 

@@ -7,11 +7,12 @@ import shutil
 
 
 class ImageEditor():
-	def __init__(self,url,name,bio,msgtotal):
+	def __init__(self,url,name,bio,msgtotal,swearwords):
 		self.basedir = "assets/image-edit/"
 		self.name = name
 		self.bio = bio
 		self.msgtotal = msgtotal
+		self.swearwords = swearwords
 		self.fontSize(40)
 
 		response = requests.get(url, stream=True)
@@ -51,6 +52,10 @@ class ImageEditor():
 		self.fontSize(28)
 		drawtext = ImageDraw.Draw(self.img)
 		drawtext.text((235, 750),"Total messages: "+str(self.msgtotal),(0,0,0), font=self.font)
+
+		self.fontSize(28)
+		drawtext = ImageDraw.Draw(self.img)
+		drawtext.text((500, 750),"Swearwords: "+str(self.swearwords),(0,0,0), font=self.font)
 
 		#self.background_image.paste(self.img, (50,50))
 

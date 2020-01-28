@@ -22,6 +22,7 @@ Things that need to be setup before using the bot.
 4. ```!m setlogchannel``` Run on channel that you want to be used as log channel.
 5. ```!m setswearchannel``` When ran on channel starts to log swearing people there.
 6. ```!m help``` Gives help to commands.
+7. ```!m profile``` Generates an image wich has all user info.
 
 # Features
 This is a list of bot's current and upcoming features.
@@ -29,5 +30,19 @@ This is a list of bot's current and upcoming features.
 - [x] Custom badges.
 - [x] If user writes some type of greeting the bot responds
 - [x] If user mentions the bot it responds with a image
+- [x] System to log events that happen on server.
+- [x] Generate custom image about users profile information.
+- [x] Track amount of messages and swearwords.
 - [ ] System to log bad words to another channel with the info of the user.
 - [ ] Poll system.
+
+# Events
+This bot logs multiple different events.
+This is handled by ```logNewEvent()``` function. With this function its possible to add new events to storage. This function takes arguments ```guild_id,userid,eventname,data``` data is usually a dictionary that contains more information about the event.
+Here is a list of actions and events what bot logs.
+- Creation and deletion of badges.
+- If a new poll is created.
+- Deleted messages. (Message is stored).
+- Edited messages. ( new message is logged).
+- User comes or leaves the server.
+- Role is given or taken away from user.

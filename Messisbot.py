@@ -121,7 +121,7 @@ class MyClient(discord.Client):
 			}
 
 
-	async def logNewEvent(self,guild_id,eventname,data):
+	async def logNewEvent(self,guild_id,userid,eventname,data):
 
 		eventlog_ch = self.servers[str(guild_id)]["storage"]["eventlog"]
 		eventlog_id = self.servers[str(guild_id)]["storage"]["eventlog_id"]
@@ -129,7 +129,8 @@ class MyClient(discord.Client):
 		eventlog_ch[str(eventlog_id)] = {
 			"eventname":str(eventname),
 			"data":data,
-			"timestamp":str(await self.getTime()) 
+			"timestamp":str(await self.getTime()),
+			"userid":str(userid)
 		}
 		eventlog_id = int(eventlog_id)+1
 
@@ -179,7 +180,7 @@ class MyClient(discord.Client):
 		foundWords = []
 		scannedmessage = message.content.split()
 		for i in range(len(self.badwords)):
-			if self.badwords[i] in scannedmessage:
+			if self.badwords[i].lower() in scannedmessage:
 				foundWords.append(self.badwords[i])
 				hasBadWords = True
 
@@ -252,9 +253,6 @@ class MyClient(discord.Client):
 
 					}
 
-
-
-					#print(guild_members)
 					for i in guild_members:
 						await self.createNewUser(i)
 
@@ -274,9 +272,7 @@ class MyClient(discord.Client):
 
 
 				if command.startswith("createbadge"):
-
 					temp = command.split(" ")
-
 					r = re.match(".*<:(.*):(.*)>",message.content) #### get emote name
 					r2 = re.match(".*:(\w*)>.*",message.content) #### get emote id
 
@@ -288,6 +284,14 @@ class MyClient(discord.Client):
 							"timestamp": str(await self.getTime())
 						}
 						await channel.send("**"+str(temp[2])+"** badge luotu emotelle: :"+str(temp[1])+": roolille: <@&"+str(mentioned_roles[0].id)+">")
+
+						data = {
+							"badgetype":str(temp[2]),
+							"badgemote":str(r.group(1)),
+							"role":str(mentioned_roles[0].id)
+						}
+						await self.logNewEvent(message.author.guild.id,message.author.id,"createbadge",data)
+
 					else:
 						await channel.send("Virhe badgen luomisessa. Onko syntaxi oikein? !m help")
 
@@ -308,6 +312,12 @@ class MyClient(discord.Client):
 					for i in badge:
 						if badge[i]["badgetype"] == temp[1]:
 							await channel.send(str(badge[i]["badgetype"])+" badge poistettiin!")
+							data = {
+								"badgetype":str(badge[i]["badgetype"]),
+								"badgemote":str(badge[i]["emotename"]),
+								"role":str(badge[i]["role"])
+							}
+							await self.logNewEvent(message.author.guild.id,message.author.id,"deletebadge",data)
 							del badge[i]
 							break #### Must break the loop because we delete stuff from the list we are looping. If not done crashes.
 
@@ -336,7 +346,10 @@ class MyClient(discord.Client):
 
 					print(temp)
 					print(answers)
-
+					data = {
+						"pollid":"0",
+					}
+					await self.logNewEvent(member.guild.id,member.id,"createpoll",data)
 					await logchannel.send(embed=embed)
 
 				if command.startswith("vote"):
@@ -366,23 +379,17 @@ class MyClient(discord.Client):
 				name = targetuser.name
 				bio = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."
 
-
-				
 				image_editor = ImageEditor(image,name,bio,msgtotal,swearwords)
 				image_editor.createProfile()
 				del image_editor
 
 				await channel.send(file=discord.File('assets/image-edit/result.png'))
 
-
-
 			elif command.startswith("help"):
 				await channel.send("https://github.com/cmdtvt/MessisBot#commands")
 
 	async def on_member_join(self,member):
-
 		await self.createNewUser(member)
-
 		joinmessage = "Hei Tervetuloa Messiksen discord serverille! Minä olen "+str(self.user.name)+" ja minä tarkkailen juttuja ympäri messiksen discord serveriä! \n Oletko jo täyttänyt pienen kyselyn? \n https://www.mess.is/liity/"
 		logchannel = self.get_channel(self.servers[str(member.guild.id)]["settings"]["setting_logchannel"])
 
@@ -398,8 +405,7 @@ class MyClient(discord.Client):
 			"user_id":str(member.id),
 			"user_nick":str(member.nick)
 		}
-
-		await self.logNewEvent(member.guild.id,"joinedserver",data)
+		await self.logNewEvent(member.guild.id,member.id,"joinedserver",data)
 
 	async def on_member_remove(self,member):
 		logchannel = self.get_channel(self.servers[str(member.guild.id)]["settings"]["setting_logchannel"])
@@ -417,15 +423,31 @@ class MyClient(discord.Client):
 			"user_id":str(member.id),
 			"user_nick":str(member.nick)
 		}
-		await self.logNewEvent(member.guild.id,"leftserver",data)
+		await self.logNewEvent(member.guild.id,member.id,"leftserver",data)
+
+	async def on_message_delete(self,message):
+		logchannel = self.get_channel(self.servers[str(message.author.guild.id)]["settings"]["setting_logchannel"])
+		logmessage = "<@"+str(message.author.id)+"> poisti viestin kanavalla: <#"+str(message.channel.id)+"> ```"+str(message.content)+"```"
+		data = {
+			"message":str(message.content)
+		}
+		await self.logNewEvent(message.author.guild.id,message.author.id,"messagedelete",data)
+		await logchannel.send(logmessage)
+
+	async def on_raw_message_edit(self,payload):
+		logchannel = self.get_channel(self.servers[str(payload.cached_message.guild.id)]["settings"]["setting_logchannel"])
+		link = "https://discordapp.com/channels/"+str(payload.cached_message.guild.id)+"/"+str(payload.cached_message.channel.id)+"/"+str(payload.cached_message.id)
+		logmessage = "<@"+str(payload.cached_message.author.id)+"> muutti viestiä kanavalla:"+str(link)+" <#"+str(payload.cached_message.channel.id)+"> ```"+str(payload.cached_message.content)+"```"
+		data = {
+			"oldmessage":str(payload.cached_message.content),
+			"newmessage":"None"
+		}
+		await self.logNewEvent(payload.cached_message.guild.id,payload.cached_message.author.id,"messageedit",data)
 
 
 	async def on_member_update(self,before,after):
-
 		#### Check if roles has been added or removed from user.
 		if len(after.roles) > len(before.roles):
-			print("Role was added")
-
 			for i in after.roles:
 				if not i in before.roles:
 					data = {
@@ -434,11 +456,9 @@ class MyClient(discord.Client):
 						"user_name":str(after.name),
 						"user_id":str(after.id)
 					}
-					await self.logNewEvent(after.guild.id,"roleadd",data)
+					await self.logNewEvent(after.guild.id,after.id,"roleadd",data)
 
 		elif len(after.roles) < len(before.roles):
-			print("Role was removed")
-
 			for i in before.roles:
 				if not i in after.roles:
 					data = {
@@ -447,14 +467,9 @@ class MyClient(discord.Client):
 						"user_name":str(after.name),
 						"user_id":str(after.id)
 					}
-					await self.logNewEvent(after.guild.id,"roleremoved",data)
-
+					await self.logNewEvent(after.guild.id,after.id,"roleremoved",data)
 		else:
 			print("Something else happend")
-
-
-		#print(after.roles)
-		#print(dir(after))
 
 	async def on_raw_reaction_add(self,payload):
 
@@ -463,12 +478,8 @@ class MyClient(discord.Client):
 
 		if emoteid in self.servers[str(payload.guild_id)]["settings"]["setting_badges"]:
 			if self.servers[str(payload.guild_id)]["settings"]["setting_badges"][emoteid]["role"] in [str(x.id) for x in user.roles]:
-
 				badgeinfo = self.servers[str(payload.guild_id)]["settings"]["setting_badges"][emoteid]
 				badgetype = badgeinfo["badgetype"]
-
-
-
 
 				#### Message Generation and stuff
 				channel = self.get_channel(payload.channel_id)
@@ -478,11 +489,7 @@ class MyClient(discord.Client):
 				link = "https://discordapp.com/channels/"+str(payload.guild_id)+"/"+str(payload.channel_id)+"/"+str(payload.message_id) #### Generate link for the message
 				logmessage = link+" \n > <@"+str(sender.id)+"> antoi <@"+str(messageobj.author.id)+"> **"+str(badgetype)+"** badgen! \n ```"+str(messageobj.content)+"```"
 
-
-
 				if not str(payload.message_id) in self.servers[str(payload.guild_id)]["storage"]["badges"].keys(): #### Check that the badge has not been added allready
-
-
 					await logchannel.send(logmessage)
 					#### Add message badge info into the servers/badges
 					self.servers[str(payload.guild_id)]["storage"]["badges"][str(payload.message_id)] = {
@@ -497,8 +504,9 @@ class MyClient(discord.Client):
 						"type":str(badgetype),
 						"timestamp": str(await self.getTime())
 					}
+					data = {}
+					await self.logNewEvent(payload.guild_id,payload.user_id,"gavebadge",data)
 
-							
 
 client = MyClient()
 client.run(botkey)

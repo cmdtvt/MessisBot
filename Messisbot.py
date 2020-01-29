@@ -324,38 +324,110 @@ class MyClient(discord.Client):
 				if command.startswith("createpoll"):
 					logchannel = self.get_channel(self.servers[str(message.author.guild.id)]["settings"]["setting_logchannel"])
 
-					temp = command.split(",")
-					name = temp[1]
-					text = temp[2]
-					answers = temp[3]
-					answers = answers.strip("(")
-					answers = answers.strip(")")
-					answers = answers.split(",")
+					r = re.match(".*(\(.*?\)).*(\(.*?\)).*(\(.*?\))",message.content)
+					if r:
+						pollstorage = self.servers[str(guild_id)]["storage"]["polls"]
+						name = r.group(1).strip("(").strip(")")
+						text = r.group(2).strip("(").strip(")")
+						answers = r.group(3).strip("(").strip(")")
+						answers = answers.split(",")
+						pollid = random.randrange(1000,10000)
 
-					embed=discord.Embed(title="Kysely: **"+str(name)+"**",description=text, color=0x92e3f1)
-					embed.set_author(name="MessisBot",icon_url=self.botimage)
+						while(True):
+							if str(pollid) in pollstorage:
+								pollid = random.randrange(1000,10000) #### Create random id for poll
+							else:
+								break;
 
-					embed.add_field(name="##################################################", value="**Vaihtoehdot**", inline=False)
-					for i in range(20):
-						embed.add_field(name="#"+str(i)+" Vaihtoehto", value="Keksit",inline=True)
+						storage_answer_list = {}
+						for i in range(len(answers)):
+							storage_answer_list[i] = {
+								"name":str(answers[i]),
+								"votes-amount":"0"
+							} 
 
-					#embed.set_thumbnail(url=member.avatar_url)
+						print(storage_answer_list)
 
-					embed.add_field(name="##################################################", value="Miten vastaan? Kirjoita !m vote [NUMERO]",inline=False)
-					embed.set_footer(text=str(await self.getTime()))
 
-					print(temp)
-					print(answers)
+						pollstorage[str(pollid)] = {
+							"answers":storage_answer_list,
+							"createdby":str(message.author.id),
+							"channel":str(message.channel.id),
+							"pollname":str(name),
+							"polltext":str(text),
+							"pollactive":str(True),
+							"votes":{}
+						}
+
+						embed=discord.Embed(title="Kysely: **"+str(name)+"**",description=text, color=0x92e3f1)
+						embed.set_author(name="MessisBot",icon_url=self.botimage)
+						embed.set_thumbnail(url="https://via.placeholder.com/350x350?text="+str(pollid))
+						embed.add_field(name="####################################", value="**Vaihtoehdot**", inline=False)
+						for i in range(len(answers)):
+							embed.add_field(name="#"+str(i)+" Vaihtoehto", value=str(answers[i]),inline=True)
+
+						embed.add_field(name="###################################", value="Miten vastaan? Kirjoita !m vote "+str(pollid)+" [NUMERO]",inline=False)
+						embed.set_footer(text=str(await self.getTime()))
+
+						print(answers)
+						data = {
+							"pollid":str(pollid),
+						}
+						await self.logNewEvent(message.guild.id,message.author.id,"createpoll",data)
+						await message.channel.send(embed=embed)
+					else:
+						await message.channel.send("Virhe pollin luomisessa? Onko syntaxi oikein? !m help")
+
+				if command.startswith("closepoll"):
+					pollstorage = self.servers[str(guild_id)]["storage"]["polls"]
+					temp = command.split(" ")
+					pollid = str(temp[1])
+					if pollid in pollstorage:
+						pollstorage[str(pollid)]["pollactive"] = str(False)
+
 					data = {
-						"pollid":"0",
+						"pollid":str(pollid)
 					}
-					await self.logNewEvent(member.guild.id,member.id,"createpoll",data)
-					await logchannel.send(embed=embed)
+					await self.logNewEvent(message.guild.id,message.author.id,"closepoll",data)
+					await channel.send(message.author.name+" Sulki äänestyksen: "+str(pollid))
+
+				if command.startswith("openpoll"):
+					pollstorage = self.servers[str(guild_id)]["storage"]["polls"]
+					temp = command.split(" ")
+					pollid = str(temp[1])
+					if pollid in pollstorage:
+						pollstorage[str(pollid)]["pollactive"] = str(True)
+
+					data = {
+						"pollid":str(pollid)
+					}
+					await self.logNewEvent(message.guild.id,message.author.id,"openpoll",data)
+					await channel.send(message.author.name+" Avasi äänestyksen: "+str(pollid))
+
 
 				if command.startswith("vote"):
+					pollstorage = self.servers[str(guild_id)]["storage"]["polls"]
 					temp = command.split(" ")
-					
-					await channel.send(message.author.name+" Äänesti vaihtoethoa: "+str(temp[1]))
+					pollid = str(temp[1])
+					answer = str(temp[2])
+
+					if pollid in pollstorage:
+						if pollstorage[str(pollid)]["pollactive"] == "True":
+
+
+							pollstorage[str(pollid)]["votes"][str(message.author.id)] = {
+								"voted":str(answer),
+								"timestamp":str(await self.getTime())
+							}
+
+							pollstorage[str(pollid)]["answers"][str(answer)]["votes-amount"] = int(pollstorage[str(pollid)]["answers"][str(answer)]["votes-amount"])+1
+
+
+							await channel.send(message.author.name+" Äänesti vaihtoethoa: "+str(answer)+" äänestyksessä: "+str(pollid))
+						else:
+							await channel.send("Äänestys "+str(temp[1])+" on suljettu.")
+					else:
+						await channel.send("Äänestystä "+str(temp[1])+" ei löytynyt. Onko numero oikein?")
 
 
 					
@@ -435,6 +507,8 @@ class MyClient(discord.Client):
 		await logchannel.send(logmessage)
 
 	async def on_raw_message_edit(self,payload):
+
+
 		logchannel = self.get_channel(self.servers[str(payload.cached_message.guild.id)]["settings"]["setting_logchannel"])
 		link = "https://discordapp.com/channels/"+str(payload.cached_message.guild.id)+"/"+str(payload.cached_message.channel.id)+"/"+str(payload.cached_message.id)
 		logmessage = "<@"+str(payload.cached_message.author.id)+"> muutti viestiä kanavalla:"+str(link)+" <#"+str(payload.cached_message.channel.id)+"> ```"+str(payload.cached_message.content)+"```"
@@ -443,6 +517,7 @@ class MyClient(discord.Client):
 			"newmessage":"None"
 		}
 		await self.logNewEvent(payload.cached_message.guild.id,payload.cached_message.author.id,"messageedit",data)
+		await logchannel.send(logmessage)
 
 
 	async def on_member_update(self,before,after):

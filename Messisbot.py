@@ -1,4 +1,7 @@
 from datetime import datetime
+import matplotlib.pyplot as plt
+
+import plotly.graph_objects as go
 import glob, os
 import platform
 import re
@@ -135,11 +138,7 @@ class MyClient(discord.Client):
 		eventlog_id = int(eventlog_id)+1
 
 		self.servers[str(guild_id)]["storage"]["eventlog_id"] = int(self.servers[str(guild_id)]["storage"]["eventlog_id"])+1
-
-		#userstats["swearwords"] = int(userstats["swearwords"])+1
-		#print(eventlog_id)
 		print(self.servers[str(guild_id)]["storage"]["eventlog_id"])
-		#print("New event registerd!")
 
 
 	async def on_ready(self):
@@ -152,16 +151,16 @@ class MyClient(discord.Client):
 
 
 	async def on_message(self, message):
-		channel = message.channel
-		guild_id = str(message.guild.id)
-		lowercased_content = message.content.lower();
-		logchannel = self.get_channel(self.servers[str(message.author.guild.id)]["settings"]["setting_logchannel"])
-		swearlogchannel = self.get_channel(self.servers[str(message.author.guild.id)]["settings"]["setting_swearlogchannel"])
 
-		#### Track user message count ####
-		try:
+		try: 
+			channel = message.channel
+			guild_id = str(message.guild.id)
+			lowercased_content = message.content.lower();
+			logchannel = self.get_channel(self.servers[str(message.author.guild.id)]["settings"]["setting_logchannel"])
+			swearlogchannel = self.get_channel(self.servers[str(message.author.guild.id)]["settings"]["setting_swearlogchannel"])
+			#### Track user message count ####
 			userstats = self.servers[guild_id]["storage"]["users"][str(message.author.id)]["stats"]
-			userstats["messages-total"] = int(userstats["messages-total"])+1
+			userstats["messages-total"] = str(int(userstats["messages-total"])+1)
 		except:
 			pass;
 
@@ -341,9 +340,9 @@ class MyClient(discord.Client):
 
 						storage_answer_list = {}
 						for i in range(len(answers)):
-							storage_answer_list[i] = {
+							storage_answer_list[str(i)] = {
 								"name":str(answers[i]),
-								"votes-amount":"0"
+								"votes-amount":1
 							} 
 
 						print(storage_answer_list)
@@ -404,6 +403,77 @@ class MyClient(discord.Client):
 					await self.logNewEvent(message.guild.id,message.author.id,"openpoll",data)
 					await channel.send(message.author.name+" Avasi äänestyksen: "+str(pollid))
 
+				if command.startswith("polls"):
+					temp = []
+					temp = command.split(" ")
+					openpolls = "Aktiiviset äänestykset\n"
+					pollstorage = self.servers[str(guild_id)]["storage"]["polls"]
+
+					if not len(temp) > 1: #### If nothing is added to the command dont run this one.
+						for i in pollstorage:
+							if pollstorage[i]["pollactive"] == "True":
+								openpolls = openpolls+str(i)+" : "+str(pollstorage[i]["pollname"])+"\n"
+					else:
+						if temp[1] == "all":
+							for i in pollstorage:
+								if pollstorage[i]["pollactive"] == "True":
+									openpolls = openpolls+str(i)+" : "+str(pollstorage[i]["pollname"])+"\n"
+
+							openpolls = openpolls+"\nSuljetut äänestykset\n"
+							for i in pollstorage:
+								openpolls = openpolls+str(i)+" : "+str(pollstorage[i]["pollname"])+"\n"
+
+					await channel.send(str(openpolls))
+
+				if command.startswith("pollinfo"):
+					pollstorage = self.servers[str(guild_id)]["storage"]["polls"]
+					temp = command.split(" ")
+					pollid = str(temp[1])
+					labels = []
+					sizes = []
+
+					if pollid in pollstorage:
+						pollname = pollstorage[pollid]["pollname"]
+						polltext = pollstorage[pollid]["polltext"]
+
+
+						for x in pollstorage[str(pollid)]["answers"]:
+
+
+							print("Dumping info")
+							print(x)
+							print(type(x))
+							#print(str(pollstorage[str(pollid)]))
+							print(str(pollstorage[str(pollid)]["answers"]))
+							print(str(pollstorage[str(pollid)]["answers"][str(x)]))
+							print(str(pollstorage[str(pollid)]["answers"][str(x)]["name"]))
+
+
+
+
+							labels.append(str(pollstorage[str(pollid)]["answers"][str(x)]["name"]))
+							sizes.append(str(pollstorage[str(pollid)]["answers"][str(x)]["votes-amount"]))
+						
+						#labels = 'Frogs', 'Hogs', 'Dogs', 'Logs'
+						print(type(labels))
+						print(labels)
+						explode = (0, 0)  # only "explode" the 2nd slice (i.e. 'Hogs')
+
+						fig1, ax1 = plt.subplots()
+						ax1.set_title(str(pollid)+" : "+pollname)
+						ax1.pie(sizes, explode=explode, labels=labels, autopct='%1.1f%%',
+						        shadow=True, startangle=90)
+						ax1.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
+
+
+
+						
+						plt.savefig('pollinfo.png')
+
+						await channel.send(file=discord.File('pollinfo.png'))
+					else:
+						pass;
+
 
 				if command.startswith("vote"):
 					pollstorage = self.servers[str(guild_id)]["storage"]["polls"]
@@ -420,14 +490,27 @@ class MyClient(discord.Client):
 								"timestamp":str(await self.getTime())
 							}
 
-							pollstorage[str(pollid)]["answers"][str(answer)]["votes-amount"] = int(pollstorage[str(pollid)]["answers"][str(answer)]["votes-amount"])+1
+
+
+
+
+							print("#### DUMPING DATA ####")
+							print(str(pollid))
+							print(pollstorage[str(pollid)]["answers"])
+							print(pollstorage[str(pollid)]["answers"][str(1)])
+							print(pollstorage[str(pollid)]["answers"][str(answer)]["votes-amount"])
+							print("#### DUMP OVER ####")
+
+
+							pollstorage[str(pollid)]["answers"][str(answer)]["votes-amount"] = pollstorage[str(pollid)]["answers"][str(answer)]["votes-amount"]+1
 
 
 							await channel.send(message.author.name+" Äänesti vaihtoethoa: "+str(answer)+" äänestyksessä: "+str(pollid))
 						else:
 							await channel.send("Äänestys "+str(temp[1])+" on suljettu.")
 					else:
-						await channel.send("Äänestystä "+str(temp[1])+" ei löytynyt. Onko numero oikein?")
+						print("Ei löytynyt")
+						#await channel.send("Äänestystä "+str(temp[1])+" ei löytynyt. Onko numero oikein?")
 
 
 					
@@ -444,6 +527,7 @@ class MyClient(discord.Client):
 					targetuser = mentioned_users[0]
 				else:
 					targetuser = message.author
+				userstats = self.servers[guild_id]["storage"]["users"][str(targetuser.id)]["stats"]
 
 				msgtotal = userstats["messages-total"]
 				swearwords = userstats["swearwords"]
@@ -453,7 +537,7 @@ class MyClient(discord.Client):
 
 				image_editor = ImageEditor(image,name,bio,msgtotal,swearwords)
 				image_editor.createProfile()
-				del image_editor
+				del image_editor #### Delete image editor for safety.
 
 				await channel.send(file=discord.File('assets/image-edit/result.png'))
 
@@ -508,16 +592,16 @@ class MyClient(discord.Client):
 
 	async def on_raw_message_edit(self,payload):
 
-
-		logchannel = self.get_channel(self.servers[str(payload.cached_message.guild.id)]["settings"]["setting_logchannel"])
-		link = "https://discordapp.com/channels/"+str(payload.cached_message.guild.id)+"/"+str(payload.cached_message.channel.id)+"/"+str(payload.cached_message.id)
-		logmessage = "<@"+str(payload.cached_message.author.id)+"> muutti viestiä kanavalla:"+str(link)+" <#"+str(payload.cached_message.channel.id)+"> ```"+str(payload.cached_message.content)+"```"
-		data = {
-			"oldmessage":str(payload.cached_message.content),
-			"newmessage":"None"
-		}
-		await self.logNewEvent(payload.cached_message.guild.id,payload.cached_message.author.id,"messageedit",data)
-		await logchannel.send(logmessage)
+		if not payload.cached_message.author.id == self.user.id: #### This line exclused messages edited by bot. This is because embed trigger this.
+			logchannel = self.get_channel(self.servers[str(payload.cached_message.guild.id)]["settings"]["setting_logchannel"])
+			link = "https://discordapp.com/channels/"+str(payload.cached_message.guild.id)+"/"+str(payload.cached_message.channel.id)+"/"+str(payload.cached_message.id)
+			logmessage = "<@"+str(payload.cached_message.author.id)+"> muutti viestiä kanavalla:"+str(link)+" <#"+str(payload.cached_message.channel.id)+"> ```"+str(payload.cached_message.content)+"```"
+			data = {
+				"oldmessage":str(payload.cached_message.content),
+				"newmessage":"None"
+			}
+			await self.logNewEvent(payload.cached_message.guild.id,payload.cached_message.author.id,"messageedit",data)
+			await logchannel.send(logmessage)
 
 
 	async def on_member_update(self,before,after):

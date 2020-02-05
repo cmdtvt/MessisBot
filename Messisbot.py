@@ -438,37 +438,24 @@ class MyClient(discord.Client):
 
 
 						for x in pollstorage[str(pollid)]["answers"]:
-
-
-							print("Dumping info")
-							print(x)
-							print(type(x))
-							#print(str(pollstorage[str(pollid)]))
-							print(str(pollstorage[str(pollid)]["answers"]))
-							print(str(pollstorage[str(pollid)]["answers"][str(x)]))
-							print(str(pollstorage[str(pollid)]["answers"][str(x)]["name"]))
-
-
-
-
 							labels.append(str(pollstorage[str(pollid)]["answers"][str(x)]["name"]))
 							sizes.append(str(pollstorage[str(pollid)]["answers"][str(x)]["votes-amount"]))
+							
 						
-						#labels = 'Frogs', 'Hogs', 'Dogs', 'Logs'
-						print(type(labels))
-						print(labels)
-						explode = (0, 0)  # only "explode" the 2nd slice (i.e. 'Hogs')
+						explode = []
+						for i in range(len(sizes)):
+							explode.append(0)
 
 						fig1, ax1 = plt.subplots()
 						ax1.set_title(str(pollid)+" : "+pollname)
-						ax1.pie(sizes, explode=explode, labels=labels, autopct='%1.1f%%',
-						        shadow=True, startangle=90)
+						ax1.pie(sizes, explode=explode, labels=labels, autopct='%1.1f%%',shadow=False, startangle=90)
 						ax1.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
-
-
-
-						
 						plt.savefig('pollinfo.png')
+
+
+
+
+
 
 						await channel.send(file=discord.File('pollinfo.png'))
 					else:
@@ -489,17 +476,6 @@ class MyClient(discord.Client):
 								"voted":str(answer),
 								"timestamp":str(await self.getTime())
 							}
-
-
-
-
-
-							print("#### DUMPING DATA ####")
-							print(str(pollid))
-							print(pollstorage[str(pollid)]["answers"])
-							print(pollstorage[str(pollid)]["answers"][str(1)])
-							print(pollstorage[str(pollid)]["answers"][str(answer)]["votes-amount"])
-							print("#### DUMP OVER ####")
 
 
 							pollstorage[str(pollid)]["answers"][str(answer)]["votes-amount"] = pollstorage[str(pollid)]["answers"][str(answer)]["votes-amount"]+1
@@ -543,6 +519,9 @@ class MyClient(discord.Client):
 
 			elif command.startswith("help"):
 				await channel.send("https://github.com/cmdtvt/MessisBot#commands")
+
+			elif command.startswith("programming"):
+				await channel.send(file=discord.File('assets/Dont-touch.jpg'))
 
 	async def on_member_join(self,member):
 		await self.createNewUser(member)

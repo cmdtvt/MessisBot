@@ -1,10 +1,14 @@
 ''' This file contains some core functions for the bot '''
-import async
+import glob, os
+import asyncio
+import json
+
+from datetime import datetime
 
 '''
 Function to save bot's storage to data.json file.
 '''
-async def saveData(data):
+def saveData(data):
 	print("Saving started!")
 	tempdata = data
 	with open('data.json', 'w') as fpp:
@@ -21,9 +25,9 @@ async def loadData():
 		data = {}
 		with open('data.json', 'r') as fp:
 			data = json.load(fp)
-		return data
 		fp.close()
 		print("Loading done!")
+		return data
 	except:
 		#### If bot fails to load data.json make self.servers an empty dictionary to avoid crashes also disable autosave that all data is not lost in autosave.
 		print("[#### WARNING ####]: Bot was unable to load data from storage.")
@@ -82,8 +86,10 @@ async def checkIfServerExsists(storage,serverid):
 '''
 Function to create new user.
 '''
-async def createNewUser(storage,serverid,userid):
-	user = self.get_guild(serverid).get_member(userid)
+async def createNewUser(storage,server,userid):
+	user = server.get_member(userid)
+	print(user)
+	print(type(user))
 	curuser = storage[str(user.guild.id)]["storage"]["users"]
 	curuser[str(user.id)] = {
 		"storage":{
@@ -105,19 +111,34 @@ async def createNewUser(storage,serverid,userid):
 			"name":role.name
 		}
 
-async def createNewChannel(storage,channel):
-	storage[guild_id]["storage"]["channels"][channel.id] = {
-		"name":channel.name,
-		"category":channel.category,
-		"category_id":channel.category_id,
-		"type":channel.type,
+async def createNewChannel(storage,server,channelid):
+
+	#print(print("sup: "+str(channel.name)))
+	#print("yeet: "+str(dir(server.get_channel(channelid))))
+	#print("yeet2: "+str(server.get_channel(channelid)))
+	channel = server.get_channel(channelid)
+	print("Creating channel: "+str(channel.name)+" With id: "+str(channel.id))
+	storage[str(server.id)]["storage"]["channels"][str(channel.id)] = {
+		"name":str(channel.name),
+		"category":str(channel.category),
+		"category_id":str(channel.category_id),
+		"type":str(channel.type),
 		"archived":str(False)
 	}
+	
 
 
 
 
-async def setupServer(storage,guild_id,guild_owner,guild_name,guild_members,guild_channels):
+async def setupServer(storage,message,server):
+	print(server)
+	guild_id = str(message.guild.id)
+	guild_id = str(message.guild.id)
+	guild_owner = message.guild.owner_id
+	guild_name = message.guild.name
+	guild_members = message.guild.members
+	guild_channels = message.guild.channels
+
 	storage[guild_id] = {
 		"serverinfo": {
 			"owner":guild_owner,
@@ -143,12 +164,12 @@ async def setupServer(storage,guild_id,guild_owner,guild_name,guild_members,guil
 	}
 
 	for i in guild_members:
-		await createNewUser(i)
+		await createNewUser(storage,server,i.id)
 
 	for i in guild_channels:
-		await createNewChannel(i)
+		await createNewChannel(storage,server,i.id)
 
-	return True
+	#return True
 
 
 

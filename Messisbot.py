@@ -1,3 +1,7 @@
+import sys
+if sys.version_info[0] < 3:
+    raise Exception("Python 3 or a more recent version is required.")
+
 from datetime import datetime
 import matplotlib.pyplot as plt
 import glob, os
@@ -31,44 +35,55 @@ class MyClient(discord.Client):
 		self.autosave_frequency = 30 #### How many seconds between autosaves.
 
 
-	async def on_ready(self):
-		await self.servers = loadData()
-		await self.badwords = reloadWordDetect()
+	async def doSave(self,):
+		await self.wait_until_ready()
+		while not self.is_closed():
+			if self.autosave == True:
+				saveData(self.servers)
+			await asyncio.sleep(self.autosave_frequency)
 
-		self.saveLoop = self.loop.create_task(self.doSave())
+	async def on_ready(self):
+		self.servers = await loadData()
+		self.badwords = await reloadWordDetect()
+
+		self.saveLoop = self.loop.create_task(await self.doSave())
 		print(discord.__version__)
 		print('Logged on as {0}!'.format(self.user))
 
 
 	async def on_message(self, message):
+		command = message.content.strip(self.prefix+" ")
 		channel = message.channel
-		guild_id = str(message.guild.id)
+		author = message.author
+		mentioned_users = message.mentions
+		mentioned_roles = message.role_mentions
+		guild_id = message.guild.id
+		guild_owner = message.guild.owner_id
+		guild_name = message.guild.name
+		guild_members = message.guild.members
+		guild_channels = message.guild.channels
+
+
 		lowercased_content = message.content.lower();
 
-		if checkIfServerExsists(self.servers,message.guild.id):
-			if checkIfUserExsists(self.servers,message.guild.id,message.author.id):
+
+		if message.content == self.prefix+"setup":
+			await setupServer(self.servers,message,self.get_guild(guild_id))
+			await channel.send("Server setup done! Members: "+str(len(guild_members)))
+
+		elif await checkIfServerExsists(self.servers,message.guild.id):
+			if await checkIfUserExsists(self.servers,message.guild.id,message.author.id):
 
 
 				logchannel = self.get_channel(self.servers[str(message.author.guild.id)]["settings"]["setting_logchannel"])
 				swearlogchannel = self.get_channel(self.servers[str(message.author.guild.id)]["settings"]["setting_swearlogchannel"])
 
-				server_storage = self.servers[guild_id]["storage"]
-				server_settings = self.servers[guild_id]["settings"]
-				userdata = self.servers[guild_id]["storage"]["users"][str(message.author.id)]
+				server_storage = self.servers[str(guild_id)]["storage"]
+				server_settings = self.servers[str(guild_id)]["settings"]
+				userdata = self.servers[str(guild_id)]["storage"]["users"][str(message.author.id)]
 				userstats = userdata['stats']
 
 				if message.content.startswith(self.prefix):
-					command = message.contnet.strip(self.prefix+" ")
-
-					author = message.author
-					mentioned_users = message.mentions
-					mentioned_roles = message.role_mentions
-					channel_id = message.channel.id
-					guild_id = str(message.guild.id)
-					guild_owner = message.guild.owner_id
-					guild_name = message.guild.name
-					guild_members = message.guild.members
-					guild_channels = message.guild.channels
 
 					#### Test if user is bot admin ####
 					if author.id == self.adminuser:
@@ -76,20 +91,22 @@ class MyClient(discord.Client):
 							await channel.send("It seems that the test was successfull.")
 
 						if command == "save":
-							await saveData()
+							await saveData(self.servers)
 							await channel.send("Saving done!")
 
 						if command == "load":
-							await loadData()
+							self.servers = await loadData()
 							await channel.send("Loading done!")
 
 						if command == "reload_word_detect":
 							await reloadWordDetect()
 							await channel.send("Reloading done!")
 
-					if command == "setup":
-						await setupServer(self.servers,guild_id,guild_owner,guild_name,guild_members,guild_channels)
-						await channel.send("Server setup done! Members: "+str(len(guild_members)))
+						if command.startswith("setadminrole"):
+							server_settings["setting_adminrole"] = mentioned_roles[0].id
+							await channel.send("Updated admin role to: <@&"+str(server_settings["setting_adminrole"])+">")
+
+
 
 					#### Check if person has adminrole on server ####
 					if server_settings["setting_adminrole"] in [x.id for x in message.author.roles]:
@@ -194,7 +211,7 @@ class MyClient(discord.Client):
 									embed.add_field(name="#"+str(i)+" Vaihtoehto", value=str(answers[i]),inline=True)
 
 								embed.add_field(name="###################################", value="Miten vastaan? Kirjoita !m vote "+str(pollid)+" [NUMERO]",inline=False)
-								embed.set_footer(text=str(await self.getTime()))
+								embed.set_footer(text=str(await getTime()))
 
 								print(answers)
 								data = {
@@ -255,18 +272,26 @@ class MyClient(discord.Client):
 								await channel.send(str(openpolls))
 
 
+							elif command.startswith("help"):
+								await channel.send("https://github.com/cmdtvt/MessisBot#commands")
+
+							elif command.startswith("programming"):
+								await channel.send(file=discord.File('assets/Dont-touch.jpg'))
+
+
+			'''
+			Things to run on every message
+			'''
+			userstats["messages-total"] = int(userstats["messages-total"])+1
+			server_storage["total-messages"] = int(server_storage["total-messages"])+1
 
 		else:
 			if message.content.startswith(self.prefix):
 				await channel.send("This server has not been registerd! Commands wont be usable before setup.")
 
 
-		'''
-		Things to run on every message
-		'''
-		userstats["messages-total"] = int(userstats["messages-total"])+1
 
-		server_storage["total-messages"] = int(server_storage["total-messages"])+1
+
 
 
 
@@ -279,3 +304,47 @@ class MyClient(discord.Client):
 		#### Post image if someone mentions the bot ####
 		if self.user in message.mentions:
 			 await channel.send(file=discord.File('assets/summoned.png'))
+
+	async def on_raw_reaction_add(self,payload):
+		print("heissan")
+
+
+
+		#### This system needs to be "modernized" ####
+		emoteid = str(payload.emoji.id)
+		user = self.get_guild(payload.guild_id).get_member(payload.user_id)
+
+		if emoteid in self.servers[str(payload.guild_id)]["settings"]["setting_badges"]:
+			if self.servers[str(payload.guild_id)]["settings"]["setting_badges"][emoteid]["role"] in [str(x.id) for x in user.roles]:
+				badgeinfo = self.servers[str(payload.guild_id)]["settings"]["setting_badges"][emoteid]
+				badgetype = badgeinfo["badgetype"]
+
+				#### Message Generation and stuff
+				channel = self.get_channel(payload.channel_id)
+				logchannel = self.get_channel(self.servers[str(payload.guild_id)]["settings"]["setting_logchannel"])
+				messageobj = await channel.fetch_message(payload.message_id)
+				sender = self.get_guild(payload.guild_id).get_member(payload.user_id)
+				link = "https://discordapp.com/channels/"+str(payload.guild_id)+"/"+str(payload.channel_id)+"/"+str(payload.message_id) #### Generate link for the message
+				logmessage = link+" \n > <@"+str(sender.id)+"> antoi <@"+str(messageobj.author.id)+"> **"+str(badgetype)+"** badgen! \n ```"+str(messageobj.content)+"```"
+
+				if not str(payload.message_id) in self.servers[str(payload.guild_id)]["storage"]["badges"].keys(): #### Check that the badge has not been added allready
+					await logchannel.send(logmessage)
+					#### Add message badge info into the servers/badges
+					self.servers[str(payload.guild_id)]["storage"]["badges"][str(payload.message_id)] = {
+						"message":str(messageobj.content),
+						"messagelink":str(link),
+						"messageownername":str(messageobj.author.name),
+						"messageownerid":str(messageobj.author.id),
+						"usergavename":str(self.get_guild(payload.guild_id).get_member(payload.user_id).name),
+						"usergaveid":str(payload.user_id),
+						"channelid":str(payload.channel_id),
+						"channelname":str(channel.name),
+						"type":str(badgetype),
+						"timestamp": str(await self.getTime())
+					}
+					data = {}
+					await self.logNewEvent(payload.guild_id,payload.user_id,"gavebadge",data)
+
+
+client = MyClient()
+client.run(botkey)

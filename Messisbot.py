@@ -33,6 +33,8 @@ class MyClient(discord.Client):
 		self.botimage = "http://via.placeholder.com/350x350" #### Image for embeds
 		self.autosave = True
 		self.autosave_frequency = 30 #### How many seconds between autosaves.
+		self.checkTwitch = False
+
 
 
 	async def doSave(self,):
@@ -40,16 +42,27 @@ class MyClient(discord.Client):
 		while not self.is_closed():
 			if self.autosave == True:
 				saveData(self.servers)
+
+
+			if self.checkTwitch == True:
+				streamer_name = "oomessis"
+				client_id = 0
+				twitch_api_stream_url = "https://api.twitch.tv/kraken/streams/"+streamer_name+"?client_id="+client_id
+				streamer_html = requests.get(twitch_api_stream_url)
+				streamer = json.loads(streamer_html.content)
+
 			await asyncio.sleep(self.autosave_frequency)
+
 
 	async def on_ready(self):
 		self.servers = await loadData()
 		self.badwords = await reloadWordDetect()
 
+		#self.twitchLoop = self.loop.create_task(await self.doCheckTwitch())
 		self.saveLoop = self.loop.create_task(await self.doSave())
+
 		print(discord.__version__)
 		print('Logged on as {0}!'.format(self.user))
-
 
 	async def on_message(self, message):
 		command = message.content.strip(self.prefix+" ")
@@ -63,35 +76,36 @@ class MyClient(discord.Client):
 		guild_members = message.guild.members
 		guild_channels = message.guild.channels
 
-
 		lowercased_content = message.content.lower();
-
-
+		
 		if message.content == self.prefix+"setup":
-			await setupServer(self.servers,message,self.get_guild(guild_id))
-			await channel.send("Server setup done! Members: "+str(len(guild_members)))
+			if guild_owner == message.author.id:
+				await setupServer(self.servers,message,self.get_guild(guild_id))
+				await channel.send("Server setup done! Members: "+str(len(guild_members)))
 
 		elif await checkIfServerExsists(self.servers,message.guild.id):
 			if await checkIfUserExsists(self.servers,message.guild.id,message.author.id):
 
 
-				logchannel = self.get_channel(self.servers[str(message.author.guild.id)]["settings"]["setting_logchannel"])
-				swearlogchannel = self.get_channel(self.servers[str(message.author.guild.id)]["settings"]["setting_swearlogchannel"])
 
 				server_storage = self.servers[str(guild_id)]["storage"]
 				server_settings = self.servers[str(guild_id)]["settings"]
+
+				logchannel = self.get_channel(server_settings["setting_logchannel"])
+				swearlogchannel = self.get_channel(server_settings["setting_swearlogchannel"])
 				userdata = self.servers[str(guild_id)]["storage"]["users"][str(message.author.id)]
 				userstats = userdata['stats']
 
 				if message.content.startswith(self.prefix):
 
 					#### Test if user is bot admin ####
-					if author.id == self.adminuser:
+					if int(message.author.id) == int(self.adminuser):
+						print("Hello")
 						if command == "test":
 							await channel.send("It seems that the test was successfull.")
 
 						if command == "save":
-							await saveData(self.servers)
+							saveData(self.servers)
 							await channel.send("Saving done!")
 
 						if command == "load":
@@ -109,7 +123,7 @@ class MyClient(discord.Client):
 
 
 					#### Check if person has adminrole on server ####
-					if server_settings["setting_adminrole"] in [x.id for x in message.author.roles]:
+					if server_settings["setting_adminrole"] in [x.id for x in message.author.roles] or guild_owner == message.author.id:
 						if command == "setlogchannel":
 							server_settings["setting_logchannel"] = message.channel.id
 							await channel.send("Log channel set!")
@@ -223,60 +237,110 @@ class MyClient(discord.Client):
 								await message.channel.send("Virhe pollin luomisessa? Onko syntaxi oikein? !m help")
 
 
-							if command.startswith("closepoll"):
-								pollstorage = server_storage["polls"]
-								temp = command.split(" ")
-								pollid = str(temp[1])
-								if pollid in pollstorage:
-									pollstorage[str(pollid)]["pollactive"] = str(False)
+						if command.startswith("closepoll"):
+							pollstorage = server_storage["polls"]
+							temp = command.split(" ")
+							pollid = str(temp[1])
+							if pollid in pollstorage:
+								pollstorage[str(pollid)]["pollactive"] = False
 
-								data = {
-									"pollid":pollid
-								}
+							data = {
+								"pollid":pollid
+							}
 								#await self.logNewEvent(message.guild.id,message.author.id,"closepoll",data)
-								await channel.send(author.name+" Sulki äänestyksen: "+str(pollid))
+							await channel.send(author.name+" Sulki äänestyksen: "+str(pollid))
 
-							if command.startswith("openpoll"):
-								pollstorage = server_storage["polls"]
-								temp = command.split(" ")
-								pollid = str(temp[1])
-								if pollid in pollstorage:
-									pollstorage[str(pollid)]["pollactive"] = str(True)
+						if command.startswith("openpoll"):
+							pollstorage = server_storage["polls"]
+							temp = command.split(" ")
+							pollid = str(temp[1])
+							if pollid in pollstorage:
+								pollstorage[str(pollid)]["pollactive"] = True
 
-								data = {
-									"pollid":pollid
-								}
+							data = {
+								"pollid":pollid
+							}
 								#await self.logNewEvent(message.guild.id,message.author.id,"openpoll",data)
-								await channel.send(author.name+" Avasi äänestyksen: "+str(pollid))
+							await channel.send(author.name+" Avasi äänestyksen: "+str(pollid))
 
-							if command.startswith("polls"):
-								temp = []
-								temp = command.split(" ")
-								openpolls = "Aktiiviset äänestykset\n"
-								pollstorage = server_storage["polls"]
+						if command.startswith("polls"):
+							temp = []
+							temp = command.split(" ")
+							openpolls = "Aktiiviset äänestykset\n"
+							pollstorage = server_storage["polls"]
 
-								if not len(temp) > 1: #### If nothing is added to the command dont run this one.
+							if not len(temp) > 1: #### If nothing is added to the command dont run this one.
+								for i in pollstorage:
+									if pollstorage[i]["pollactive"] == True:
+										openpolls = openpolls+str(i)+" : "+str(pollstorage[i]["pollname"])+"\n"
+							else:
+								if temp[1] == "all":
 									for i in pollstorage:
-										if pollstorage[i]["pollactive"] == "True":
-											openpolls = openpolls+str(i)+" : "+str(pollstorage[i]["pollname"])+"\n"
-								else:
-									if temp[1] == "all":
-										for i in pollstorage:
-											if pollstorage[i]["pollactive"] == "True":
-												openpolls = openpolls+str(i)+" : "+str(pollstorage[i]["pollname"])+"\n"
-
-										openpolls = openpolls+"\nSuljetut äänestykset\n"
-										for i in pollstorage:
+										if pollstorage[i]["pollactive"] == True:
 											openpolls = openpolls+str(i)+" : "+str(pollstorage[i]["pollname"])+"\n"
 
-								await channel.send(str(openpolls))
+									openpolls = openpolls+"\nSuljetut äänestykset\n"
+									for i in pollstorage:
+										if pollstorage[i]["pollactive"] == False:
+											openpolls = openpolls+str(i)+" : "+str(pollstorage[i]["pollname"])+"\n"
+							await channel.send(str(openpolls))
 
 
-							elif command.startswith("help"):
-								await channel.send("https://github.com/cmdtvt/MessisBot#commands")
+						if command.startswith("pollinfo"):
+							pollstorage = server_storage["polls"]
+							temp = command.split(" ")
+							pollid = str(temp[1])
+							labels = []
+							sizes = []
 
-							elif command.startswith("programming"):
-								await channel.send(file=discord.File('assets/Dont-touch.jpg'))
+							if pollid in pollstorage:
+								pollname = pollstorage[pollid]["pollname"]
+								polltext = pollstorage[pollid]["polltext"]
+
+
+								for x in pollstorage[str(pollid)]["answers"]:
+									labels.append(str(pollstorage[str(pollid)]["answers"][str(x)]["name"]))
+									sizes.append(str(pollstorage[str(pollid)]["answers"][str(x)]["votes-amount"]))
+
+								
+								explode = []
+								for i in range(len(sizes)):
+									explode.append(0)
+
+								fig1, ax1 = plt.subplots()
+								ax1.set_title(str(pollid)+" : "+pollname)
+								ax1.pie(sizes, explode=explode, labels=labels, autopct='%1.1f%%',shadow=False, startangle=90)
+								ax1.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
+								plt.savefig('pollinfo.png',transparrent=True)
+
+
+								await channel.send(file=discord.File('pollinfo.png'))
+							else:
+								pass;
+
+
+						if command.startswith("help"):
+							await channel.send("https://github.com/cmdtvt/MessisBot#commands")
+
+						if command.startswith("programming"):
+							await channel.send(file=discord.File('assets/Dont-touch.jpg'))
+
+						if command.startswith("gameroom"):
+							print("moi")
+							#msg = await client.wait_for('message', timeout=60.0, check=check)
+							#await channel.send("Jaahas: "+str(msg))
+
+						if command.startswith("archive"):
+							channel_data = self.servers[str(guild_id)]["storage"]["channels"][str(message.channel.id)]
+
+							if channel_data["archived"] == False:
+								channel_data["archived"] = True
+								await channel.send("Kanava archivattu. Uudet viestit estetty.")
+							else:
+								channel_data["archived"] = False
+								await channel.send("Kanavan archaivaus poistettu.")
+
+
 
 
 			'''
@@ -306,17 +370,17 @@ class MyClient(discord.Client):
 			 await channel.send(file=discord.File('assets/summoned.png'))
 
 	async def on_raw_reaction_add(self,payload):
-		print("heissan")
 
-
+		server_storage = self.servers[str(payload.guild_id)]["storage"]
+		server_settings = self.servers[str(payload.guild_id)]["settings"]
 
 		#### This system needs to be "modernized" ####
 		emoteid = str(payload.emoji.id)
-		user = self.get_guild(payload.guild_id).get_member(payload.user_id)
 
-		if emoteid in self.servers[str(payload.guild_id)]["settings"]["setting_badges"]:
-			if self.servers[str(payload.guild_id)]["settings"]["setting_badges"][emoteid]["role"] in [str(x.id) for x in user.roles]:
-				badgeinfo = self.servers[str(payload.guild_id)]["settings"]["setting_badges"][emoteid]
+		user = self.get_guild(payload.guild_id).get_member(payload.user_id)
+		if emoteid in server_settings["setting_badges"]:
+			if server_settings["setting_badges"][emoteid]["role"] in [x.id for x in user.roles]:
+				badgeinfo = server_settings["setting_badges"][emoteid]
 				badgetype = badgeinfo["badgetype"]
 
 				#### Message Generation and stuff
@@ -340,8 +404,9 @@ class MyClient(discord.Client):
 						"channelid":str(payload.channel_id),
 						"channelname":str(channel.name),
 						"type":str(badgetype),
-						"timestamp": str(await self.getTime())
+						"timestamp": str(await getTime())
 					}
+
 					data = {}
 					await self.logNewEvent(payload.guild_id,payload.user_id,"gavebadge",data)
 

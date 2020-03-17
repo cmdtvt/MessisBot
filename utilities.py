@@ -83,6 +83,16 @@ async def checkIfServerExsists(storage,serverid):
 		return False
 
 
+#### This doesnt work cause it is a big bully ####
+async def toggleValue(storage,value):
+	print("vallu: "+str(value))
+	if value == True:
+		value = False
+		return False
+	else:
+		value = True
+		return True
+
 '''
 Function to create new user.
 '''
@@ -151,6 +161,8 @@ async def setupServer(storage,message,server):
 			"polls":{},
 			"users":{},
 			"channels":{},
+			"gamerooms":{},
+			"twitch_channels":{},
 			"total-messages":0
 		},
 		"settings":{

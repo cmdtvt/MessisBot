@@ -55,6 +55,7 @@ This is a list of bot's current and upcoming features.
 - [x] Track amount of messages and swearwords.
 - [ ] System to log bad words to another channel with the info of the user.
 - [ ] Poll system.
+- [ ] Twitch integration
 
 # Events
 This bot logs multiple different events.

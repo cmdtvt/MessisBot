@@ -14,21 +14,35 @@ Things that need to be setup before using the bot.
 4. ```!m setswearchannel``` When ran on channel starts to log swearing people there.
 
 # Commands
+
+### Bot Owner
+1. ```!m test```
+2. ```!m save```
+3. ```!m load ```
+4. ```!m reload_word_detect```
+
+### Server Owner
 1. ```!m setup``` Register current server to the bot.
 2. ```!m setadminrole [MENTION ROLE]``` Set role wich has access to admin commands.
-3. ```!m createbadge [EMOTE] [NAME] [ROLE]``` Create new badge wich can be used be spefic role.
-4. ```!m listbadges``` Lists all badges.
-5. ```!m delbadge [NAME]``` Deletes badge from server.
+
+### Admins / Server owner
+1. ```!m createbadge [EMOTE] [NAME] [ROLE]``` Create new badge wich can be used be spefic role.
+2. ```!m listbadges``` Lists all badges.
+3. ```!m delbadge [NAME]``` Deletes badge from server.
 4. ```!m setlogchannel``` Run on channel that you want to be used as log channel.
 5. ```!m setswearchannel``` When ran on channel starts to log swearing people there.
-6. ```!m help``` Gives help to commands.
-7. ```!m profile``` Generates an image wich has all user info.
-8. ```!m createpoll ([POLL NAME]) ([POLL TEXT]) ([POLL ANSWERS])``` Creates a new poll. Answers should be devided by ```,``` for example ```(answer1,answer2,answer3)```
-9. ```!m polls``` Lists active polls. If you wanna see all the polls you can use ```!m polls all```.
-10. ```!m closepoll [POLL ID]``` Closes poll so users cant vote on it.
-11. ```!m openpoll [POLL ID]``` Opens poll so users can vote on it again.
-12. ```!m vote [POLL ID] [VOTED ANSWERS NUMBER]``` Vote on poll.
-13. ```!m pollinfo [POLL ID]``` Get graph of the poll.
+
+6. ```!m createpoll ([POLL NAME]) ([POLL TEXT]) ([POLL ANSWERS])``` Creates a new poll. Answers should be devided by ```,``` for example ```(answer1,answer2,answer3)```
+7. ```!m polls``` Lists active polls. If you wanna see all the polls you can use ```!m polls all```.
+8. ```!m closepoll [POLL ID]``` Closes poll so users cant vote on it.
+10. ```!m openpoll [POLL ID]``` Opens poll so users can vote on it again.
+11. ```!m pollinfo [POLL ID]``` Get graph of the poll.
+
+### Everyone
+1. ```!m vote [POLL ID] [VOTED ANSWERS NUMBER]``` Vote on poll.
+2. ```!m profile``` Generates an image wich has all user info.
+3. ```!m help``` Gives help to commands.
+
 
 # Features
 This is a list of bot's current and upcoming features.

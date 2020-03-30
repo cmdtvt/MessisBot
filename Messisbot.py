@@ -70,6 +70,7 @@ class MyClient(discord.Client):
 		author = message.author
 		mentioned_users = message.mentions
 		mentioned_roles = message.role_mentions
+		mentioned_channels = message.channel_mentions
 		guild_id = message.guild.id
 		guild_owner = message.guild.owner_id
 		guild_name = message.guild.name
@@ -118,6 +119,23 @@ class MyClient(discord.Client):
 						if command == "reload_word_detect":
 							await reloadWordDetect()
 							await channel.send("Reloading done!")
+
+
+						'''
+						if command == "structure_copy":
+							targetserver_id = 694190498868363284
+							targetserver = self.get_guild(targetserver_id)
+							await channel.send("Copying started to: "+str(targetserver_id))
+
+
+							#await targetserver.create_text_channel("topi_testaa", overwrites=None, category=None, reason=None,)
+
+							for ch in self.get_guild(guild_id).channels:
+								
+								await targetserver.create_text_channel(ch.name, overwrites=None, category=None, reason=None,)
+								print(ch.name)
+
+						'''
 
 
 
@@ -339,6 +357,28 @@ class MyClient(discord.Client):
 								channel_data["archived"] = False
 								await channel.send("Kanavan archaivaus poistettu.")
 
+						if command.startswith("linkchannel"):
+							#nimi,kanava
+							temp = command.split(" ")
+							mentchan = mentioned_channels[0]
+							if mentchan:
+								server_storage['directchannels'][str(temp[1])] = {
+									"channel": mentchan.id,
+									"timestamp": str(await getTime())
+								}
+
+								await channel.send("Linkki luotu nimellä: "+temp[1]+" / kanavalle: "+mentchan.name)
+								print(server_storage['directchannels'][str(temp[1])])
+							else:
+								await channel.send("Anna kanavalle nimi.")
+
+						if command.startswith("listchannels"):
+							txt = "Kanavat\n\n"
+							for i in server_storage['directchannels']:
+								txt = txt+str(i)+" : "+str(server_storage['directchannels'][i]["channel"])+"\n"
+
+							await channel.send(str(txt))
+
 
 					if command.startswith("vote"):
 						pollstorage = server_storage["polls"]
@@ -395,6 +435,55 @@ class MyClient(discord.Client):
 						del image_editor #### Delete image editor for safety.
 
 						await channel.send(file=discord.File('assets/image-edit/result.png'))
+
+
+					if command.startswith("joinchannel"):
+						temp = command.split(" ")
+
+						if str(temp[1]) in server_storage["directchannels"]:
+							ch_id = server_storage["directchannels"][str(temp[1])]["channel"]
+							ch = self.get_channel(ch_id)
+
+							print(ch.name)
+
+							await ch.set_permissions(message.author, read_messages=True, send_messages=True)
+							await channel.send("Pääsy lisätty!")
+
+							data = {
+								"user_name":str(author.name),
+								"user_id":str(author.id),
+								"timestamp": str(await getTime())
+							}
+							await logNewEvent(server_storage,guild_id,author.id,"giveaccess",data)
+
+						else:
+							await channel.send("Kanavaa ei löytynyt")
+
+					if command.startswith("leavechannel"):
+						temp = command.split(" ")
+
+						if str(temp[1]) in server_storage["directchannels"]:
+							ch_id = server_storage["directchannels"][str(temp[1])]["channel"]
+							ch = self.get_channel(ch_id)
+
+							print(ch.name)
+
+							await ch.set_permissions(message.author, read_messages=False, send_messages=False)
+							await channel.send("Pääsy poistettu!")
+
+							data = {
+								"user_name":str(author.name),
+								"user_id":str(author.id),
+								"timestamp": str(await getTime())
+							}
+							await logNewEvent(server_storage,guild_id,author.id,"removedaccess",data)
+
+						else:
+							await channel.send("Kanavaa ei löytynyt")
+
+
+
+
 
 
 
@@ -618,7 +707,7 @@ class MyClient(discord.Client):
 		embed.set_author(name="CookieBot",icon_url=self.botimage)
 		#embed.set_thumbnail(url=member.avatar_url)
 		embed.set_footer(text=str(await getTime()))
-		
+
 		await logchannel.send(embed=embed)
 		await logNewEvent(server_storage["storage"],channel.guild.id,server_storage["serverinfo"]["owner"],"createchannel",data)
 

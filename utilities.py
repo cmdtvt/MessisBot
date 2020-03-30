@@ -9,12 +9,12 @@ from datetime import datetime
 Function to save bot's storage to data.json file.
 '''
 def saveData(data):
-	print("Saving started!")
+	#print("Saving started!")
 	tempdata = data
 	with open('data.json', 'w') as fpp:
 		json.dump(tempdata, fpp, sort_keys=True, indent=4)
 	fpp.close()
-	print("Saving done!")
+	#print("Saving done!")
 
 '''
 Function to load bot's storage to self.servers.
@@ -60,13 +60,16 @@ async def reloadWordDetect():
 Function to get current timestamp.
 '''
 async def getTime():
+	#now = datetime.now()
+	#year = now.strftime("%Y")
+	#month = now.strftime("%m")
+	#day = now.strftime("%d")
+	#time = now.strftime("%H:%M:%S")
+	#date_time = now.strftime("%m/%d/%Y, %H:%M:%S")
+
 	now = datetime.now()
-	year = now.strftime("%Y")
-	month = now.strftime("%m")
-	day = now.strftime("%d")
-	time = now.strftime("%H:%M:%S")
-	date_time = now.strftime("%m/%d/%Y, %H:%M:%S")
-	return date_time;
+	timestamp = datetime.timestamp(now)
+	return timestamp;
 
 
 async def checkIfUserExsists(storage,serverid,userid):
@@ -93,18 +96,36 @@ async def toggleValue(storage,value):
 		value = True
 		return True
 
+
+
+async def logNewEvent(storage,guild_id,userid,eventname,data):
+
+	eventlog_ch = storage["eventlog"]
+	eventlog_id = storage["eventlog_id"]
+
+	eventlog_ch[str(eventlog_id)] = {
+		"eventname":str(eventname),
+		"data":data,
+		"timestamp":str(await getTime()),
+		"userid":str(userid)
+	}
+	eventlog_id = int(eventlog_id)+1
+
+	storage["eventlog_id"] = int(storage["eventlog_id"])+1
+	#print(storage["eventlog_id"])
+
 '''
 Function to create new user.
 '''
 async def createNewUser(storage,server,userid):
 	user = server.get_member(userid)
-	print(user)
-	print(type(user))
+	print("Creating user: "+str(user)+" / "+str(user.status))
+
 	curuser = storage[str(user.guild.id)]["storage"]["users"]
 	curuser[str(user.id)] = {
 		"storage":{
 			"discordname":user.name,
-			"status":user.status,
+			"status":str(user.status), ### THIS MUST BE str(). If this is not done it adds stuff as list.
 			"linked":{},
 			"roles":{}
 		},
@@ -121,19 +142,24 @@ async def createNewUser(storage,server,userid):
 			"name":role.name
 		}
 
+'''
+This function registers new channel for server.
+storage is the full storage file. self.storage
+server is the guild object
+channel is channel id as int i think.
+
+(Totaly didint waste 1h debugging this)
+'''
 async def createNewChannel(storage,server,channelid):
 
-	#print(print("sup: "+str(channel.name)))
-	#print("yeet: "+str(dir(server.get_channel(channelid))))
-	#print("yeet2: "+str(server.get_channel(channelid)))
 	channel = server.get_channel(channelid)
-	print("Creating channel: "+str(channel.name)+" With id: "+str(channel.id))
 	storage[str(server.id)]["storage"]["channels"][str(channel.id)] = {
 		"name":str(channel.name),
 		"category":str(channel.category),
 		"category_id":str(channel.category_id),
 		"type":str(channel.type),
-		"archived":str(False)
+		"archived":str(False),
+		"total-messages":0
 	}
 	
 
@@ -182,24 +208,3 @@ async def setupServer(storage,message,server):
 		await createNewChannel(storage,server,i.id)
 
 	#return True
-
-
-
-'''
-Function to log event to bot's storage.
-'''
-async def logNewEvent(self,guild_id,userid,eventname,data):
-
-	eventlog_ch = self.servers[str(guild_id)]["storage"]["eventlog"]
-	eventlog_id = self.servers[str(guild_id)]["storage"]["eventlog_id"]
-
-	eventlog_ch[str(eventlog_id)] = {
-		"eventname":str(eventname),
-		"data":data,
-		"timestamp":str(await self.getTime()),
-		"userid":str(userid)
-	}
-	eventlog_id = int(eventlog_id)+1
-
-	self.servers[str(guild_id)]["storage"]["eventlog_id"] = int(self.servers[str(guild_id)]["storage"]["eventlog_id"])+1
-	print(self.servers[str(guild_id)]["storage"]["eventlog_id"])

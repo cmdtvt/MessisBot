@@ -17,7 +17,7 @@ import random
 
 from config import *
 from storage import *
-from utilities2 import *
+from utilities import *
 from imageEdit import *
 
 
@@ -78,15 +78,19 @@ class MyClient(discord.Client):
 
 		lowercased_content = message.content.lower();
 		
-		if message.content == self.prefix+"setup":
-			if guild_owner == message.author.id:
+		if guild_owner == message.author.id or self.adminuser ==  message.author.id:
+			if message.content == self.prefix+"setup":
 				await setupServer(self.servers,message,self.get_guild(guild_id))
 				await channel.send("Server setup done! Members: "+str(len(guild_members)))
 
-		elif await checkIfServerExsists(self.servers,message.guild.id):
+			if await checkIfServerExsists(self.servers,message.guild.id):
+				if command.startswith("setadminrole"):
+					server_settings = self.servers[str(guild_id)]["settings"]
+					server_settings["setting_adminrole"] = mentioned_roles[0].id
+					await channel.send("Updated admin role to: <@&"+str(server_settings["setting_adminrole"])+">")
+
+		if await checkIfServerExsists(self.servers,message.guild.id):
 			if await checkIfUserExsists(self.servers,message.guild.id,message.author.id):
-
-
 
 				server_storage = self.servers[str(guild_id)]["storage"]
 				server_settings = self.servers[str(guild_id)]["settings"]
@@ -100,7 +104,6 @@ class MyClient(discord.Client):
 
 					#### Test if user is bot admin ####
 					if int(message.author.id) == int(self.adminuser):
-						print("Hello")
 						if command == "test":
 							await channel.send("It seems that the test was successfull.")
 
@@ -115,10 +118,6 @@ class MyClient(discord.Client):
 						if command == "reload_word_detect":
 							await reloadWordDetect()
 							await channel.send("Reloading done!")
-
-						if command.startswith("setadminrole"):
-							server_settings["setting_adminrole"] = mentioned_roles[0].id
-							await channel.send("Updated admin role to: <@&"+str(server_settings["setting_adminrole"])+">")
 
 
 
@@ -151,7 +150,7 @@ class MyClient(discord.Client):
 									"badgemote":r.group(1),
 									"role":mentioned_roles[0].id
 								}
-								#await self.logNewEvent(message.author.guild.id,message.author.id,"createbadge",data)
+								await logNewEvent(server_storage,message.author.guild.id,message.author.id,"createbadge",data)
 							else:
 								await channel.send("Virhe badgen luomisessa. Onko syntaxi oikein? !m help")
 
@@ -213,7 +212,7 @@ class MyClient(discord.Client):
 									"channel":message.channel.id,
 									"pollname":name,
 									"polltext":text,
-									"pollactive":str(True),
+									"pollactive":True,
 									"votes":{}
 								}
 
@@ -341,6 +340,63 @@ class MyClient(discord.Client):
 								await channel.send("Kanavan archaivaus poistettu.")
 
 
+					if command.startswith("vote"):
+						pollstorage = server_storage["polls"]
+						temp = command.split(" ")
+						pollid = str(temp[1])
+						answer = str(temp[2])
+
+						if pollid in pollstorage:
+							if pollstorage[str(pollid)]["pollactive"] == True:
+
+								if str(message.author.id) in pollstorage[str(pollid)]["votes"]:
+
+									oldvoteid = pollstorage[str(pollid)]["votes"][str(message.author.id)]["voted"]
+
+									if str(oldvoteid) in pollstorage[str(pollid)]["answers"]:
+										pollstorage[str(pollid)]["answers"][str(oldvoteid)]["votes-amount"] = pollstorage[str(pollid)]["answers"][str(oldvoteid)]["votes-amount"]-1
+									await channel.send("Äänestit uudestaan vaihtoehtoa: "+str(answer)+" äänestyksessä: "+str(pollid))
+								else:
+									await channel.send(message.author.name+" Äänesti vaihtoethoa: "+str(answer)+" äänestyksessä: "+str(pollid))
+
+								pollstorage[str(pollid)]["answers"][str(answer)]["votes-amount"] = pollstorage[str(pollid)]["answers"][str(answer)]["votes-amount"]+1
+								pollstorage[str(pollid)]["votes"][str(message.author.id)] = {
+									"voted":str(answer),
+									"timestamp":str(await self.getTime())
+								}
+
+							else:
+								await channel.send("Äänestys "+str(temp[1])+" on suljettu.")
+						else:
+							print("Ei löytynyt")
+						#await channel.send("Äänestystä "+str(temp[1])+" ei löytynyt. Onko numero oikein?")
+
+					if command.startswith("emg"):
+						await channel.send("Oh snap! Hätäsammutus! <@"+str(self.adminuser)+"> <@"+str(self.adminuser)+"> <@"+str(self.adminuser)+"> <@"+str(self.adminuser)+">")
+						quit()
+
+					if command.startswith("profile"):
+
+						#### If user has not mentioned anyone show users own profile.
+						if len(mentioned_users) > 0:
+							targetuser = mentioned_users[0]
+						else:
+							targetuser = message.author
+						userstats = server_storage["users"][str(targetuser.id)]["stats"]
+
+						msgtotal = userstats["messages-total"]
+						swearwords = userstats["swearwords"]
+						image = targetuser.avatar_url
+						name = targetuser.name
+						bio = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."
+
+						image_editor = ImageEditor(image,name,bio,msgtotal,swearwords)
+						image_editor.createProfile()
+						del image_editor #### Delete image editor for safety.
+
+						await channel.send(file=discord.File('assets/image-edit/result.png'))
+
+
 
 
 			'''
@@ -348,6 +404,26 @@ class MyClient(discord.Client):
 			'''
 			userstats["messages-total"] = int(userstats["messages-total"])+1
 			server_storage["total-messages"] = int(server_storage["total-messages"])+1
+
+			server_storage["channels"][str(channel.id)]["total-messages"] = int(server_storage["channels"][str(channel.id)]["total-messages"])+1
+
+			if not self.user == message.author:
+				hasBadWords = False
+				foundWords = []
+				scannedmessage = message.content.split()
+				for i in range(len(self.badwords)):
+					if self.badwords[i].lower() in scannedmessage:
+						foundWords.append(self.badwords[i])
+						hasBadWords = True
+
+				if hasBadWords == True:
+					await swearlogchannel.send("> <@"+str(message.author.id)+"> triggered bad words: "+str(foundWords))
+					try:
+						userstats = server_storage["users"][str(message.author.id)]["stats"]
+						userstats["swearwords"] = int(userstats["swearwords"])+1
+					except:
+						pass;
+					hasBadWords = False
 
 		else:
 			if message.content.startswith(self.prefix):
@@ -389,7 +465,7 @@ class MyClient(discord.Client):
 				messageobj = await channel.fetch_message(payload.message_id)
 				sender = self.get_guild(payload.guild_id).get_member(payload.user_id)
 				link = "https://discordapp.com/channels/"+str(payload.guild_id)+"/"+str(payload.channel_id)+"/"+str(payload.message_id) #### Generate link for the message
-				logmessage = link+" \n > <@"+str(sender.id)+"> antoi <@"+str(messageobj.author.id)+"> **"+str(badgetype)+"** badgen! \n ```"+str(messageobj.content)+"```"
+				logmessage = link+" \n<@"+str(sender.id)+"> antoi <@"+str(messageobj.author.id)+"> **"+str(badgetype)+"** badgen! ```"+str(messageobj.content)+"```"
 
 				if not str(payload.message_id) in self.servers[str(payload.guild_id)]["storage"]["badges"].keys(): #### Check that the badge has not been added allready
 					await logchannel.send(logmessage)
@@ -408,7 +484,143 @@ class MyClient(discord.Client):
 					}
 
 					data = {}
-					await self.logNewEvent(payload.guild_id,payload.user_id,"gavebadge",data)
+					await logNewEvent(server_storage,payload.guild_id,payload.user_id,"gavebadge",data)
+
+	async def on_message_delete(self,message):
+		server_storage = self.servers[str(message.author.guild.id)]["storage"]
+		server_settings = self.servers[str(message.author.guild.id)]["settings"]
+		logchannel = self.get_channel(server_settings["setting_logchannel"])
+		logmessage = "<@"+str(message.author.id)+"> poisti viestin kanavalla: <#"+str(message.channel.id)+"> ```"+str(message.content)+"```"
+		data = {
+			"message":str(message.content)
+		}
+		await logNewEvent(server_storage,message.author.guild.id,message.author.id,"messagedelete",data)
+		await logchannel.send(logmessage)
+
+
+	async def on_raw_message_edit(self,payload):
+		server_storage = self.servers[str(payload.cached_message.guild.id)]["storage"]
+		server_settings = self.servers[str(payload.cached_message.guild.id)]["settings"]
+
+		if not payload.cached_message.author.id == self.user.id: #### This line exclused messages edited by bot. This is because embed trigger this.
+			logchannel = self.get_channel(server_settings["setting_logchannel"])
+			link = "https://discordapp.com/channels/"+str(payload.cached_message.guild.id)+"/"+str(payload.cached_message.channel.id)+"/"+str(payload.cached_message.id)
+			logmessage = "<@"+str(payload.cached_message.author.id)+"> muutti viestiä kanavalla:"+str(link)+" <#"+str(payload.cached_message.channel.id)+"> ```"+str(payload.cached_message.content)+"```"
+			data = {
+				"oldmessage":str(payload.cached_message.content),
+				"newmessage":"None"
+			}
+			await logNewEvent(server_storage,payload.cached_message.guild.id,payload.cached_message.author.id,"messageedit",data)
+			await logchannel.send(logmessage)
+
+	async def on_member_update(self,before,after):
+		#### Check if roles has been added or removed from user.
+		try:
+			server_storage = self.servers[str(before.guild.id)]["storage"]
+			userdata = server_storage["users"][str(after.id)]
+		except:
+			print("Error on storage or userdata")
+			pass
+
+		if len(after.roles) > len(before.roles):
+			for i in after.roles:
+				if not i in before.roles:
+					data = {
+						"rolename":str(i.name),
+						"roleid":str(i.id),
+						"user_name":str(after.name),
+						"user_id":str(after.id)
+					}
+					await logNewEvent(server_storage,after.guild.id,after.id,"roleadd",data)
+
+		elif len(after.roles) < len(before.roles):
+			server_storage = self.servers[str(before.guild.id)]["storage"]
+			for i in before.roles:
+				if not i in after.roles:
+					data = {
+						"rolename":str(i.name),
+						"roleid":str(i.id),
+						"user_name":str(after.name),
+						"user_id":str(after.id)
+					}
+					await logNewEvent(server_storage,after.guild.id,after.id,"roleremoved",data)
+					print("Role was changed!")
+
+		elif not before.status == after.status:
+			#print(after.status)
+			data = {
+				"before":str(before.status),
+				"after":str(after.status)
+			}
+			await logNewEvent(server_storage,after.guild.id,after.id,"statuschange",data)
+			for i in self.servers:
+				if str(after.id) in self.servers[str(i)]["storage"]["users"]:
+					self.servers[str(i)]["storage"]["users"][str(after.id)]["storage"]["status"] = str(after.status)
+
+		else:
+			pass
+			#print("Something else happend.")
+
+
+	async def on_member_join(self,member):
+		server_storage = self.servers[str(member.guild.id)]["storage"]
+		server_settings = self.servers[str(member.guild.id)]["settings"]
+		await createNewUser(self.servers,self.get_guild(member.guild.id),member.id)
+		#self.servers,message,self.get_guild(guild_id)
+		logchannel = self.get_channel(server_settings["setting_logchannel"])
+
+		embed=discord.Embed(description="<@"+str(member.id)+"> Liittyi palvelimelle!", color=0x33c41a)
+		embed.set_author(name="CookieBot",icon_url=self.botimage)
+		embed.set_thumbnail(url=member.avatar_url)
+		embed.set_footer(text=str(await getTime()))
+		await logchannel.send(embed=embed)
+
+		data = {
+			"user_name":member.name,
+			"user_id":member.id,
+			"user_nick":member.nick,
+			"timestamp": await getTime()
+		}
+		await logNewEvent(server_storage,member.guild.id,member.id,"joinedserver",data)
+
+	async def on_member_remove(self,member):
+
+		server_storage = self.servers[str(member.guild.id)]["storage"]
+		server_settings = self.servers[str(member.guild.id)]["settings"]
+
+		logchannel = self.get_channel(self.servers[str(member.guild.id)]["settings"]["setting_logchannel"])
+
+		embed=discord.Embed(description="<@"+str(member.id)+"> Lähti palvelimelta", color=0xef5f21)
+		embed.set_author(name="MessisBot",icon_url=self.botimage)
+		embed.set_thumbnail(url=member.avatar_url)
+		embed.set_footer(text=str(await getTime()))
+		await logchannel.send(embed=embed)
+		data = {
+			"user_name":member.name,
+			"user_id":member.id,
+			"user_nick":member.nick,
+			"timestamp": await getTime()
+		}
+		await logNewEvent(server_storage,member.guild.id,member.id,"leftserver",data)
+
+	async def on_guild_channel_create(self,channel):
+		print("Creating new channel for "+str(channel.guild.name))
+		server_storage = self.servers[str(channel.guild.id)]
+		logchannel = self.get_channel(server_storage["settings"]["setting_logchannel"])
+
+		data = {
+			"timestamp": await getTime()
+		}
+
+		await createNewChannel(self.servers,self.get_guild(channel.guild.id),channel.id)
+
+		embed=discord.Embed(description="Uusi kanava luotu: "+str(channel.name), color=0x5a4ef3)
+		embed.set_author(name="CookieBot",icon_url=self.botimage)
+		#embed.set_thumbnail(url=member.avatar_url)
+		embed.set_footer(text=str(await getTime()))
+		
+		await logchannel.send(embed=embed)
+		await logNewEvent(server_storage["storage"],channel.guild.id,server_storage["serverinfo"]["owner"],"createchannel",data)
 
 
 client = MyClient()

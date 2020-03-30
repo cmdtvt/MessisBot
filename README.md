@@ -37,11 +37,16 @@ Things that need to be setup before using the bot.
 8. ```!m closepoll [POLL ID]``` Closes poll so users cant vote on it.
 10. ```!m openpoll [POLL ID]``` Opens poll so users can vote on it again.
 11. ```!m pollinfo [POLL ID]``` Get graph of the poll.
+12. ```!m linkchannel [NAME] [MENTIONCHANNEL]``` Register hidden channel joinable with command. (This helps to reduce amount of roles when channel is directly joinable)
+13. ```!m listchannels``` Lists all registerd channels with ```linkchannel``` command.
 
 ### Everyone
 1. ```!m vote [POLL ID] [VOTED ANSWERS NUMBER]``` Vote on poll.
 2. ```!m profile``` Generates an image wich has all user info.
 3. ```!m help``` Gives help to commands.
+4. ```!m joinchannel [NAME]``` Gives you access to hidden channel.
+5. ```!m leavechannel [NAME]``` Removes your access to given hidden channel.
+
 
 
 # Features
@@ -53,17 +58,20 @@ This is a list of bot's current and upcoming features.
 - [x] System to log events that happen on server.
 - [x] Generate custom image about users profile information.
 - [x] Track amount of messages and swearwords.
-- [ ] System to log bad words to another channel with the info of the user.
-- [ ] Poll system.
+- [x] System that reduces amout of roles on a server by making hidden channels directly joinable if it has been allowed.
+- [x] System to log bad words to another channel with the info of the user.
+- [x] Poll system.
 - [ ] Twitch integration
 
 # Events
 This bot logs multiple different events.
-This is handled by ```logNewEvent()``` function. With this function its possible to add new events to storage. This function takes arguments ```guild_id,userid,eventname,data``` data is usually a dictionary that contains more information about the event.
-Here is a list of actions and events what bot logs.
+This is handled by ```logNewEvent()``` function. With this function its possible to add new events to storage. This function takes arguments ```storage,guild_id,userid,eventname,data``` data is usually a dictionary that contains more information about the event.
+Here is a list of actions and events what bot logs. Storage is servers storage dictionary (```self.servers[server/guild id]["storage"]```) This is often in variable ```server_storage```
 - Creation and deletion of badges.
 - If a new poll is created.
 - Deleted messages. (Message is stored).
 - Edited messages. ( new message is logged).
 - User comes or leaves the server.
 - Role is given or taken away from user.
+- Access is taken or given to channel with commands ```join/leavechannel```.
+

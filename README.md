@@ -1,3 +1,4 @@
+# This is old version that is not worked anymore. Please use newer branch.
 # MessisBot
 This is a discordbot for managing discord server. This bot is designed to give server admins more info of what is happening on the server. Bot will have multiple systems to make interacting with server members easier.
 

@@ -39,6 +39,7 @@ Things that need to be setup before using the bot.
 11. ```!m pollinfo [POLL ID]``` Get graph of the poll.
 12. ```!m linkchannel [NAME] [MENTIONCHANNEL]``` Register hidden channel joinable with command. (This helps to reduce amount of roles when channel is directly joinable)
 13. ```!m listchannels``` Lists all registerd channels with ```linkchannel``` command.
+14. ```!m game``` Start a new game room. Other commands are depended of the game so they are not listed here.
 
 ### Everyone
 1. ```!m vote [POLL ID] [VOTED ANSWERS NUMBER]``` Vote on poll.

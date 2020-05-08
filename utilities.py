@@ -57,15 +57,39 @@ async def reloadWordDetect():
 	return masterlist
 
 '''
+Function to load words for alias
+'''
+async def loadAlias():
+	### Scan directory for textfiles and load all words from the file to masterlist.
+	masterlist = []
+	tempList = []
+	os.chdir("games/alias/")
+	for file in glob.glob("*.txt"):
+		with open(file) as f:
+			tempList  = f.readlines()
+		f.close()
+		masterlist = masterlist + tempList
+	os.chdir("../../")
+
+	### Remove newline marks from each string.
+	for i in range(len(masterlist)):
+		tempvar = masterlist[i].split("\n")
+		masterlist[i] = tempvar[0]
+
+	return masterlist
+
+'''
 Function to get current timestamp.
 '''
 async def getTime():
-	#now = datetime.now()
-	#year = now.strftime("%Y")
-	#month = now.strftime("%m")
-	#day = now.strftime("%d")
-	#time = now.strftime("%H:%M:%S")
-	#date_time = now.strftime("%m/%d/%Y, %H:%M:%S")
+	'''
+	now = datetime.now()
+	year = now.strftime("%Y")
+	month = now.strftime("%m")
+	day = now.strftime("%d")
+	time = now.strftime("%H:%M:%S")
+	date_time = now.strftime("%m/%d/%Y, %H:%M:%S")
+	'''
 
 	now = datetime.now()
 	timestamp = datetime.timestamp(now)
@@ -99,7 +123,8 @@ async def toggleValue(storage,value):
 
 
 async def logNewEvent(storage,guild_id,userid,eventname,data):
-
+	pass
+	'''
 	eventlog_ch = storage["eventlog"]
 	eventlog_id = storage["eventlog_id"]
 
@@ -113,6 +138,7 @@ async def logNewEvent(storage,guild_id,userid,eventname,data):
 
 	storage["eventlog_id"] = int(storage["eventlog_id"])+1
 	#print(storage["eventlog_id"])
+	'''
 
 '''
 Function to create new user.
@@ -189,7 +215,8 @@ async def setupServer(storage,message,server):
 			"channels":{},
 			"gamerooms":{},
 			"twitch_channels":{},
-			"total-messages":0
+			"total-messages":0,
+			"current-game-room":0
 		},
 		"settings":{
 			"setting_adminrole":0,

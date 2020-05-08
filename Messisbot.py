@@ -2,6 +2,7 @@ import sys
 if sys.version_info[0] < 3:
     raise Exception("Python 3 or a more recent version is required.")
 
+from twitch import TwitchClient
 from datetime import datetime
 import matplotlib.pyplot as plt
 import glob, os
@@ -45,11 +46,13 @@ class MyClient(discord.Client):
 
 
 			if self.checkTwitch == True:
-				streamer_name = "oomessis"
-				client_id = 0
-				twitch_api_stream_url = "https://api.twitch.tv/kraken/streams/"+streamer_name+"?client_id="+client_id
-				streamer_html = requests.get(twitch_api_stream_url)
-				streamer = json.loads(streamer_html.content)
+				client = TwitchClient(client_id=twitch_key)
+				twitch_channel = client.channels.get_by_name(44322889)
+
+				print(twitch_channel.id)
+				print(twitch_channel.name)
+				print(twitch_channel.display_name)
+				print(dir(twitch_channel))
 
 			await asyncio.sleep(self.autosave_frequency)
 
@@ -57,6 +60,7 @@ class MyClient(discord.Client):
 	async def on_ready(self):
 		self.servers = await loadData()
 		self.badwords = await reloadWordDetect()
+		self.game_alias_words = await loadAlias()
 
 		#self.twitchLoop = self.loop.create_task(await self.doCheckTwitch())
 		self.saveLoop = self.loop.create_task(await self.doSave())
@@ -342,10 +346,73 @@ class MyClient(discord.Client):
 						if command.startswith("programming"):
 							await channel.send(file=discord.File('assets/Dont-touch.jpg'))
 
-						if command.startswith("gameroom"):
-							print("moi")
-							#msg = await client.wait_for('message', timeout=60.0, check=check)
-							#await channel.send("Jaahas: "+str(msg))
+						if command.startswith("game"):
+							temp_guild = self.get_guild(guild_id)
+							temp_voicechannel = 00000
+							temp_userIsOnChannel = False
+							voiceChannels = temp_guild.voice_channels
+							for i in voiceChannels:
+								for mem in i.members:
+									if author.id == mem.id:
+										temp_voicechannel = i.id
+										temp_userIsOnChannel = True
+							
+							if temp_userIsOnChannel == False:
+								await channel.send("Liity ensin voice kanavalle!")
+							else:
+								await channel.send("Valitse pelattava peli (120sec): alias")
+
+								temp_playablegame = await client.wait_for('message', timeout=120.0)
+
+								'''
+								create channel and set permissions so no one can see it
+								'''
+								overwrites = {
+								    self.get_guild(guild_id).default_role: discord.PermissionOverwrite(read_messages=False),
+								    self.get_guild(guild_id).me: discord.PermissionOverwrite(read_messages=True)
+								}
+								temp_chan = await temp_guild.create_text_channel("Gameroom-#0--"+str(temp_playablegame.content), overwrites=overwrites)
+
+								server_storage['gamerooms'][str(server_storage['current-game-room'])] = {
+									"voiceroom": temp_voicechannel,
+									"textchannel": temp_chan.id,
+									"gametype": str(temp_playablegame.content),
+									"players": {}
+								}
+								server_storage['current-game-room'] = int(server_storage['current-game-room'])+1
+
+								temp_players = 0
+								for i in voiceChannels:
+									if i.id == temp_chan.id:
+										temp_players = len(i.members)
+
+								await channel.send("Sanoja: "+str(len(self.game_alias_words))+" Pelaajia: "+str(temp_players))
+								
+								
+								for i in voiceChannels:
+									for mem in i.members:
+										ch2 = self.get_channel(temp_chan.id)
+										await ch2.set_permissions(mem, read_messages=True, send_messages=True)
+
+								ch = self.get_channel(temp_chan.id)
+								await ch.send("Pelataan aliasta! Yksi pelaajista saa yksityisviestinä sanan jonka hänen pitää selittää muille pelaajille!")
+								await ch.send("Aloita peli kirjoittamalla **!m start** tai lähde pelistä kirjoittamalla **!m leave**")
+								print(temp_chan.id)
+								#print(i.members)
+
+						if command.startswith("start"):
+							if channel.id == server_storage['gamerooms']['0']['textchannel']:
+
+								ch = server_storage['gamerooms']['0']['textchannel']
+								ch = self.get_channel(ch)
+								await ch.send("Aloitetaan! Vastaus aikaa 1min!")
+								await ch.send("Oikea sana oli: **"+str(random.choice(self.game_alias_words))+"**")
+
+
+
+
+							#if author.voiceChannekl
+							#await channel.send(voiceChannels)
 
 						if command.startswith("archive"):
 							channel_data = self.servers[str(guild_id)]["storage"]["channels"][str(message.channel.id)]
@@ -378,6 +445,15 @@ class MyClient(discord.Client):
 								txt = txt+str(i)+" : "+str(server_storage['directchannels'][i]["channel"])+"\n"
 
 							await channel.send(str(txt))
+
+						if command.startswith("allow"):
+							temp = command.split(" ")
+							if temp[1] == "new":
+								await channel.send("Käyttäyttäjä luotu uutena")
+								await createNewUser(self.servers,self.get_guild(member.guild.id),member.id)
+
+							elif temp[1] == "return":
+								pass;
 
 
 					if command.startswith("vote"):
@@ -481,6 +557,15 @@ class MyClient(discord.Client):
 						else:
 							await channel.send("Kanavaa ei löytynyt")
 
+					'''
+					leave from game
+					'''
+					if command.startswith("leave"):
+						if channel.id == server_storage['gamerooms']['0']['textchannel']:
+							ch = self.get_channel(server_storage['gamerooms']['0']['textchannel'])
+							await ch.set_permissions(message.author, read_messages=False, send_messages=False)
+							await ch.send(author.name+" Poistui pelistä.")
+
 
 
 
@@ -514,6 +599,10 @@ class MyClient(discord.Client):
 						pass;
 					hasBadWords = False
 
+				if int(message.author.id) == int(self.adminuser):
+					if message.content == "xD":
+						await channel.send("xD")
+
 		else:
 			if message.content.startswith(self.prefix):
 				await channel.send("This server has not been registerd! Commands wont be usable before setup.")
@@ -533,6 +622,22 @@ class MyClient(discord.Client):
 		#### Post image if someone mentions the bot ####
 		if self.user in message.mentions:
 			 await channel.send(file=discord.File('assets/summoned.png'))
+
+
+	async def on_voice_state_update(self,member, before, after):
+		server_storage = self.servers[str(member.guild.id)]["storage"]
+		server_settings = self.servers[str(member.guild.id)]["settings"]
+
+		'''
+		check if user joined voice channel wich has game on.
+		if this happens add user to the hidden game channel
+		'''
+		for i in server_storage['gamerooms']:
+			if server_storage['gamerooms'][i]['voiceroom'] == after.channel.id:
+				ch = self.get_channel(server_storage['gamerooms'][i]['textchannel'])
+				await ch.set_permissions(member, read_messages=True, send_messages=True)
+			else:
+				print("NO!")
 
 	async def on_raw_reaction_add(self,payload):
 
@@ -637,6 +742,7 @@ class MyClient(discord.Client):
 
 		elif not before.status == after.status:
 			#print(after.status)
+			server_storage = self.servers[str(before.guild.id)]["storage"]
 			data = {
 				"before":str(before.status),
 				"after":str(after.status)
@@ -654,15 +760,30 @@ class MyClient(discord.Client):
 	async def on_member_join(self,member):
 		server_storage = self.servers[str(member.guild.id)]["storage"]
 		server_settings = self.servers[str(member.guild.id)]["settings"]
-		await createNewUser(self.servers,self.get_guild(member.guild.id),member.id)
-		#self.servers,message,self.get_guild(guild_id)
 		logchannel = self.get_channel(server_settings["setting_logchannel"])
 
-		embed=discord.Embed(description="<@"+str(member.id)+"> Liittyi palvelimelle!", color=0x33c41a)
-		embed.set_author(name="CookieBot",icon_url=self.botimage)
-		embed.set_thumbnail(url=member.avatar_url)
-		embed.set_footer(text=str(await getTime()))
-		await logchannel.send(embed=embed)
+
+
+		if await checkIfUserExsists(self.servers,member.guild.id,member.id):
+
+			embed=discord.Embed(description="<@"+str(member.id)+"> Palasi palvelimelle!", color=0x33c41a)
+			embed.set_author(name="CookieBot",icon_url=self.botimage)
+
+			embed.add_field(name="Vaihtoehdot", value=self.prefix+" allow [new/return] <@"+str(member.id)+">", inline=False)
+			embed.set_thumbnail(url=member.avatar_url)
+			embed.set_footer(text=str(await getTime()))
+			await logchannel.send(embed=embed)
+
+		else:
+
+			await createNewUser(self.servers,self.get_guild(member.guild.id),member.id)
+			embed=discord.Embed(description="<@"+str(member.id)+"> Liittyi palvelimelle!", color=0x33c41a)
+			embed.set_author(name="CookieBot",icon_url=self.botimage)
+			embed.set_thumbnail(url=member.avatar_url)
+			embed.set_footer(text=str(await getTime()))
+			await logchannel.send(embed=embed)
+
+
 
 		data = {
 			"user_name":member.name,
